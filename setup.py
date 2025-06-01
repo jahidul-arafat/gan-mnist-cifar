@@ -13,13 +13,13 @@ with open(os.path.join(this_directory, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name="enhanced-dcgan-research",
-    version="0.1.0",
-    author="Your Name",  # Replace with your name
-    author_email="your.email@example.com",  # Replace with your email
+    version="0.1.1",
+    author="Jahidul Arafat",  # Replace with your name
+    author_email="jahidapon@gmail.com",  # Replace with your email
     description="Enhanced DCGAN Research Framework with Academic Reporting and Advanced Checkpointing",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/enhanced-dcgan-research",  # Replace with your repo
+    url="https://github.com/jahidul-arafat/gan-mnist-cifar",  # Replace with your repo
     packages=find_packages(),
     classifiers=[
         "Development Status :: 4 - Beta",
