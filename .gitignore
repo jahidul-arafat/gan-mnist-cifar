@@ -43,6 +43,7 @@ reports/
 data/
 models/
 runs/
+training_logs/
 
 # Model files
 *.pth

@@ -41,8 +41,6 @@ import atexit
 import sys
 import traceback
 
-from enhanced_dcgan_research.composite_enhanced_metrics_logger import create_composite_metrics_logger, \
-    CompositeEnhancedMetricsLogger, analyze_composite_training_metrics
 
 # Add this near the top with other imports
 try:
@@ -54,7 +52,7 @@ except ImportError:
 
 # Add these imports at the top of your script (after existing imports)
 class GracefulCheckpointManager:
-    """Manages graceful checkpoint saving during interrupts and errors - FIXED for metrics finalization"""
+    """Manages graceful checkpoint saving during interrupts and errors"""
 
     def __init__(self):
         self.checkpoint_data = None
@@ -67,18 +65,17 @@ class GracefulCheckpointManager:
         self.training_stats = {}
         self.emergency_save_enabled = False
 
-        # 🆕 ADD: Metrics logger integration
-        self.metrics_logger = None
-
         # Register signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
+
+        # Register exit handler
         atexit.register(self._cleanup)
 
     def register_training_components(self, dataset_key, generator, critic,
                                      optimizer_G, optimizer_D, scheduler_G, scheduler_D,
-                                     ema_generator, metrics_logger=None):
-        """Register all training components for emergency saving - ENHANCED with metrics logger"""
+                                     ema_generator):
+        """Register all training components for emergency saving"""
         self.dataset_key = dataset_key
         self.models = {
             'generator': generator,
@@ -93,15 +90,9 @@ class GracefulCheckpointManager:
             'scheduler_D': scheduler_D
         }
         self.ema_generator = ema_generator
-
-        # 🆕 CRITICAL: Register metrics logger
-        self.metrics_logger = metrics_logger
-
         self.emergency_save_enabled = True
 
         print("🛡️  Emergency checkpoint system activated")
-        if metrics_logger:
-            print("📊 Composite metrics logger integrated for graceful shutdown")
 
     def update_current_state(self, epoch, training_stats):
         """Update current training state for emergency saves"""
@@ -109,7 +100,7 @@ class GracefulCheckpointManager:
         self.training_stats = training_stats
 
     def _signal_handler(self, signum, frame):
-        """Handle interrupt signals gracefully - FIXED to finalize all data"""
+        """Handle interrupt signals gracefully"""
         signal_names = {
             signal.SIGINT: "SIGINT (Ctrl+C)",
             signal.SIGTERM: "SIGTERM"
@@ -121,81 +112,19 @@ class GracefulCheckpointManager:
 
         if self.emergency_save_enabled:
             try:
-                # 🆕 STEP 1: Finalize metrics logger FIRST
-                if self.metrics_logger:
-                    print("📊 FINALIZING COMPOSITE METRICS LOGGER...")
-                    print("   📋 This ensures all epoch and step data is saved to JSON files")
-
-                    try:
-                        # Save any pending step metrics
-                        print("   💾 Saving pending step metrics...")
-                        self.metrics_logger._save_step_metrics_incremental()
-
-                        # Save epoch summaries
-                        print("   📊 Saving epoch summaries...")
-                        self.metrics_logger._save_epoch_summaries()
-
-                        # Finalize complete training log
-                        print("   📖 Finalizing complete training log...")
-                        self.metrics_logger.finalize_training()
-
-                        print("   ✅ Composite metrics fully saved!")
-
-                        # Display what was saved
-                        print(f"   📁 Files updated:")
-                        print(f"      • {self.metrics_logger.step_metrics_file.name}")
-                        print(f"      • {self.metrics_logger.epoch_summaries_file.name}")
-                        print(f"      • {self.metrics_logger.full_training_log.name}")
-
-                    except Exception as metrics_error:
-                        print(f"   ❌ Metrics finalization failed: {metrics_error}")
-                        print(f"   ⚠️  Continuing with emergency checkpoint save...")
-                else:
-                    print("   ⚠️  No metrics logger registered - skipping metrics finalization")
-
-                # 🆕 STEP 2: NOW save emergency checkpoint
-                print("\n💾 SAVING EMERGENCY CHECKPOINT...")
-                checkpoint_path = self._save_emergency_checkpoint("interrupt")
-
-                if checkpoint_path:
-                    print("✅ Emergency checkpoint saved successfully!")
-                    print(f"   📁 Location: {checkpoint_path}")
-                else:
-                    print("❌ Emergency checkpoint save failed!")
-
+                self._save_emergency_checkpoint("interrupt")
+                print("✅ Emergency checkpoint saved successfully!")
             except Exception as e:
-                print(f"❌ Critical error during graceful shutdown: {e}")
-                print(f"📍 Error traceback:")
-                import traceback
-                traceback.print_exc()
+                print(f"❌ Failed to save emergency checkpoint: {e}")
 
-        print("\n📋 GRACEFUL SHUTDOWN SUMMARY:")
-        print("   ✅ Signal received and handled")
-        if self.metrics_logger:
-            print("   ✅ Composite metrics finalized and saved")
-        if self.emergency_save_enabled:
-            print("   ✅ Emergency checkpoint attempted")
-        print("   ✅ Clean program termination")
-
-        print("\n👋 Graceful shutdown completed. All data preserved!")
+        print("👋 Graceful shutdown completed. Goodbye!")
         print("=" * 80)
         sys.exit(0)
 
     def _cleanup(self):
-        """Cleanup function called on program exit - ENHANCED"""
+        """Cleanup function called on program exit"""
         if self.emergency_save_enabled and hasattr(self, '_abnormal_exit'):
             print("\n🚨 Abnormal program termination detected")
-
-            # Try to finalize metrics first
-            if self.metrics_logger:
-                try:
-                    print("📊 Attempting to finalize metrics on abnormal exit...")
-                    self.metrics_logger.finalize_training()
-                    print("✅ Metrics finalized on abnormal exit!")
-                except:
-                    print("❌ Failed to finalize metrics on abnormal exit")
-
-            # Then try emergency checkpoint
             try:
                 self._save_emergency_checkpoint("abnormal_exit")
                 print("✅ Emergency checkpoint saved on exit!")
@@ -2054,21 +1983,18 @@ def diagnose_gradient_penalty_issue(critic, real_samples, fake_samples, labels, 
 
 
 @enhanced_error_handler
-def train_enhanced_gan_with_resume_modified(dataset_key, config, resume_from_checkpoint=True, num_epochs=100, experiment_name=None):
-    """Enhanced training with composite metrics logging that handles multiple training sessions seamlessly"""
+def train_enhanced_gan_with_resume_modified(dataset_key, config, resume_from_checkpoint=True, num_epochs=100):
+    """Enhanced training with FIXED WGAN-GP gradient penalty monitoring"""
 
-    print(f"\n🚀 Starting Enhanced Training for {config.name} with Composite Metrics Logging")
-    print("🛡️  Enhanced features active:")
+    print(f"\n🚀 Starting Enhanced Training for {config.name}")
+    print("🛡️  Enhanced checkpoint system active:")
     print("   ✅ Auto-save every 5 epochs")
     print("   ✅ Graceful interrupt handling (Ctrl+C)")
     print("   ✅ Emergency error recovery")
     print("   ✅ Device consistency checks")
-    print("   ✅ WGAN-GP gradient norm monitoring")
-    print("   ✅ 🆕 COMPOSITE METRICS LOGGING (handles resume sessions)")
+    print("   ✅ 🆕 FIXED WGAN-GP gradient norm monitoring")
 
-    # =============================================================================
-    # CHECKPOINT HANDLING
-    # =============================================================================
+    # Check for resume option
     start_epoch = 0
     checkpoint_path = None
     checkpoint_data = None
@@ -2077,9 +2003,24 @@ def train_enhanced_gan_with_resume_modified(dataset_key, config, resume_from_che
         print("\n🔍 CHECKPOINT RESUME OPTIONS")
         checkpoint_path, checkpoint_data = get_checkpoint_choice(dataset_key)
 
-    # =============================================================================
-    # TRAINING HYPERPARAMETERS
-    # =============================================================================
+    print("="*80)
+    print("🎯 Active Enhancements:")
+    print("   ✅ 1. WGAN-GP Loss with FIXED Gradient Penalty")
+    print("   ✅ 2. EMA (Exponential Moving Average)")
+    print("   ✅ 3. Enhanced Generator/Critic Architecture")
+    print("   ✅ 4. Spectral Normalization")
+    print("   ✅ 5. Progressive Learning Rate Scheduling")
+    print("   ✅ 6. Advanced Training Monitoring")
+    print("   ✅ 7. Live Progress Tracking & Terminal Streaming")
+    print("   ✅ 8. Checkpoint Resume Capability")
+    print("   ✅ 9. 🆕 AUTO-SAVE EVERY 5 EPOCHS")
+    print("   ✅ 10. 🆕 GRACEFUL INTERRUPT HANDLING")
+    print("   ✅ 11. 🆕 EMERGENCY ERROR RECOVERY")
+    print("   ✅ 12. 🆕 DEVICE CONSISTENCY CHECKS")
+    print("   ✅ 13. 🆕 FIXED GRADIENT NORM MONITORING")
+    print("="*80)
+
+    # Enhanced hyperparameters
     batch_size = 128
     if dataset_key == 'mnist':
         learning_rate_g = 0.0001
@@ -2092,71 +2033,10 @@ def train_enhanced_gan_with_resume_modified(dataset_key, config, resume_from_che
     beta1 = 0.0
     beta2 = 0.9
     n_critic = 5
-    lambda_gp = 10.0
+    lambda_gp = 10.0  # FIXED: Use standard lambda=10 instead of 50
 
-    # =============================================================================
-    # COMPOSITE METRICS LOGGER INITIALIZATION
-    # =============================================================================
-    print(f"\n📊 INITIALIZING COMPOSITE METRICS LOGGER")
-    print("=" * 60)
-
-    # Determine resume epoch for logger
-    resume_from_epoch = None
-    if checkpoint_path and checkpoint_data:
-        resume_from_epoch = checkpoint_data.get('epoch', 0)
-        print(f"🔄 Detected resume from epoch: {resume_from_epoch}")
-
-    # Prepare system information for logger
-    device_info = {
-        "device_type": device_type,
-        "device_name": device_name,
-        "recommended_batch_size": recommended_batch_size,
-        "device_tensor": str(device),
-        "memory_manager_type": type(memory_manager).__name__,
-        "tqdm_available": TQDM_AVAILABLE,
-        "tensorboard_available": TENSORBOARD_AVAILABLE
-    }
-
-    # Prepare training configuration for logger
-    training_config = {
-        "dataset": dataset_key,
-        "batch_size": batch_size,
-        "learning_rate_generator": learning_rate_g,
-        "learning_rate_discriminator": learning_rate_d,
-        "latent_dimension": latent_dim,
-        "beta1": beta1,
-        "beta2": beta2,
-        "n_critic_updates": n_critic,
-        "lambda_gp": lambda_gp,
-        "num_epochs_planned": num_epochs,
-        "ema_decay": 0.999,
-        "gradient_clip_value": 0.5,
-        "checkpoint_frequency": 5,
-        "image_generation_frequency": 5,
-        "resumed_from_checkpoint": resume_from_checkpoint,
-        "checkpoint_path": checkpoint_path.replace('\\', '/') if checkpoint_path else None,
-        "resume_from_epoch": resume_from_epoch
-    }
-
-    # Create composite metrics logger that handles resume scenarios
-    metrics_logger = create_composite_metrics_logger(
-        dataset_key=dataset_key,
-        device_info=device_info,
-        training_config=training_config,
-        experiment_name=experiment_name,
-        resume_from_epoch=resume_from_epoch
-    )
-
-    print(f"✅ Composite metrics logger initialized successfully!")
-
-    # Display session summary if resuming
-    if resume_from_epoch and resume_from_epoch > 0:
-        print(f"\n📋 {metrics_logger.get_session_summary()}")
-
-    # =============================================================================
-    # MODEL INITIALIZATION
-    # =============================================================================
-    print(f"\n🏗️  Initializing models on device: {device}")
+    # Initialize enhanced networks
+    print(f"🏗️  Initializing models on device: {device}")
     generator = EnhancedConditionalGenerator(latent_dim, config.num_classes, config.channels).to(device)
     critic = EnhancedConditionalCritic(config.num_classes, config.channels, config.image_size).to(device)
 
@@ -2165,46 +2045,34 @@ def train_enhanced_gan_with_resume_modified(dataset_key, config, resume_from_che
         if isinstance(module, (nn.Conv2d, nn.Linear)):
             nn.utils.spectral_norm(module)
 
-    # Initialize EMA Generator
+    # Initialize EMA Generator with explicit device
     print(f"💜 Initializing EMA on device: {device}")
     ema_generator = EMAGenerator(generator, decay=0.999, device=device)
 
-    # Add model information to logger
-    model_info = {
-        "generator_parameters": sum(p.numel() for p in generator.parameters()),
-        "critic_parameters": sum(p.numel() for p in critic.parameters()),
-        "generator_architecture": str(generator.__class__.__name__),
-        "critic_architecture": str(critic.__class__.__name__),
-        "spectral_normalization": True,
-        "ema_enabled": True,
-        "ema_decay": 0.999
-    }
-    metrics_logger.set_system_info(device_info, model_info)
-
     print(f"📊 Enhanced Model Statistics:")
-    print(f"   Generator parameters: {model_info['generator_parameters']:,}")
-    print(f"   Critic parameters: {model_info['critic_parameters']:,}")
+    print(f"   Generator parameters: {sum(p.numel() for p in generator.parameters()):,}")
+    print(f"   Critic parameters: {sum(p.numel() for p in critic.parameters()):,}")
+    print(f"   EMA decay: 0.999")
+    print(f"   Spectral normalization: Applied to critic")
+    print(f"   Target device: {device}")
 
-    # =============================================================================
-    # OPTIMIZER AND SCHEDULER INITIALIZATION
-    # =============================================================================
+    # Initialize optimizers and schedulers
     optimizer_G = optim.Adam(generator.parameters(), lr=learning_rate_g, betas=(beta1, beta2))
     optimizer_D = optim.Adam(critic.parameters(), lr=learning_rate_d, betas=(beta1, beta2))
     scheduler_G = optim.lr_scheduler.ExponentialLR(optimizer_G, gamma=0.995)
     scheduler_D = optim.lr_scheduler.ExponentialLR(optimizer_D, gamma=0.995)
 
-    # Register components with checkpoint manager
+    # 🆕 REGISTER COMPONENTS WITH CHECKPOINT MANAGER
     checkpoint_manager.register_training_components(
         dataset_key, generator, critic, optimizer_G, optimizer_D,
-        scheduler_G, scheduler_D, ema_generator,
-        metrics_logger=metrics_logger  # 🆕 PASS THE METRICS LOGGER
+        scheduler_G, scheduler_D, ema_generator
     )
 
-    # =============================================================================
-    # CHECKPOINT LOADING
-    # =============================================================================
+    # INITIAL DEVICE CONSISTENCY CHECK
+    print(f"\n🔧 INITIAL DEVICE CONSISTENCY CHECK:")
     verify_device_consistency(generator, critic, ema_generator, device)
 
+    # Load checkpoint if selected
     if checkpoint_path and checkpoint_data:
         print(f"\n📥 Loading checkpoint: {os.path.basename(checkpoint_path)}")
         start_epoch = load_checkpoint_and_resume(
@@ -2213,13 +2081,8 @@ def train_enhanced_gan_with_resume_modified(dataset_key, config, resume_from_che
             ema_generator, device
         )
 
-        # Log checkpoint resume event with composite logger
-        metrics_logger.log_event("checkpoint_resumed", f"Resumed from {os.path.basename(checkpoint_path)}", {
-            "checkpoint_epoch": start_epoch,
-            "checkpoint_path": checkpoint_path,
-            "previous_sessions": len(metrics_logger.training_data["training_sessions"]) - 1
-        })
-
+        # POST-CHECKPOINT DEVICE CONSISTENCY CHECK
+        print(f"\n🔧 POST-CHECKPOINT DEVICE CONSISTENCY CHECK:")
         verify_device_consistency(generator, critic, ema_generator, device)
 
         # Adjust num_epochs if resuming
@@ -2232,19 +2095,24 @@ def train_enhanced_gan_with_resume_modified(dataset_key, config, resume_from_che
         print(f"🎯 Training will continue for {remaining_epochs} more epochs (until epoch {num_epochs})")
     else:
         print(f"🆕 Starting fresh training from epoch 1")
+
+        # FRESH TRAINING DEVICE CONSISTENCY CHECK
+        print(f"\n🔧 FRESH TRAINING DEVICE CONSISTENCY CHECK:")
         verify_device_consistency(generator, critic, ema_generator, device)
 
-    # =============================================================================
-    # DATASET LOADING
-    # =============================================================================
+    # Load dataset
     print(f"\n📥 Loading {config.name} dataset...")
     transform = get_transforms(dataset_key)
     train_dataset = get_dataset(dataset_key, transform)
 
+    # CREATE train_loader here in the correct scope
     try:
         train_loader = torch.utils.data.DataLoader(
-            train_dataset, batch_size=batch_size, shuffle=True,
-            num_workers=2, persistent_workers=False,
+            train_dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=2,
+            persistent_workers=False,
             pin_memory=False if device_type == "mps" else True
         )
         print(f"✅ DataLoader created with 2 workers for optimal performance")
@@ -2252,7 +2120,10 @@ def train_enhanced_gan_with_resume_modified(dataset_key, config, resume_from_che
         print(f"⚠️  Multiprocessing DataLoader failed: {e}")
         print(f"🔄 Falling back to single-threaded DataLoader for stability")
         train_loader = torch.utils.data.DataLoader(
-            train_dataset, batch_size=batch_size, shuffle=True, num_workers=0
+            train_dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=0
         )
 
     print(f"✅ Dataset loaded successfully!")
@@ -2260,14 +2131,14 @@ def train_enhanced_gan_with_resume_modified(dataset_key, config, resume_from_che
     print(f"   📦 Batch size: {batch_size}")
     print(f"   🔄 Total batches per epoch: {len(train_loader):,}")
 
-    # =============================================================================
-    # MONITORING AND VISUALIZATION SETUP
-    # =============================================================================
+    # Initialize enhanced live plotter
     live_plotter = EnhancedLivePlotter(config.name)
+
+    # Initialize progress tracking
     progress_tracker = ProgressTracker(device_type)
     terminal_monitor = LiveTerminalMonitor(config.name, num_epochs, device_name, device_type)
 
-    # TensorBoard writer
+    # TensorBoard writer with resume support
     if TENSORBOARD_AVAILABLE:
         log_suffix = f"_resume_epoch_{start_epoch}" if start_epoch > 0 else ""
         writer = SummaryWriter(f'./runs/{dataset_key}_enhanced_gan{log_suffix}')
@@ -2275,15 +2146,13 @@ def train_enhanced_gan_with_resume_modified(dataset_key, config, resume_from_che
     else:
         writer = SummaryWriter()
 
-    # =============================================================================
-    # WGAN-GP LOSS AND SCHEDULER INITIALIZATION
-    # =============================================================================
+    # FIXED: Initialize WGAN-GP loss with proper parameters
     wgan_loss = WassersteinGPLoss(lambda_gp)
     gp_scheduler = AdaptiveGradientPenaltyScheduler(
         initial_lambda=lambda_gp,
-        target_norm_range=(0.8, 1.2)
+        target_norm_range=(0.8, 1.2)  # FIXED: Target gradient norms, not penalty values
     )
-    print(f"🔧 Adaptive GP scheduler targets gradient norms 0.8-1.2")
+    print(f"🔧 FIXED: Adaptive GP scheduler targets gradient norms 0.8-1.2 (not penalty values)")
 
     generator.train()
     critic.train()
@@ -2292,25 +2161,45 @@ def train_enhanced_gan_with_resume_modified(dataset_key, config, resume_from_che
     fixed_noise = torch.randn(64, latent_dim).to(device)
     fixed_labels = torch.randint(0, config.num_classes, (64,)).to(device)
 
-    # Final device consistency check
+    print(f"\n🎯 Enhanced Training Configuration:")
+    print(f"   Starting Epoch: {start_epoch + 1}")
+    print(f"   Target Epochs: {num_epochs}")
+    print(f"   Remaining Epochs: {num_epochs - start_epoch}")
+    print(f"   Batch Size: {batch_size}")
+    print(f"   Checkpoint Frequency: Every 5 epochs")
+    print(f"   Current Generator LR: {scheduler_G.get_last_lr()[0]:.2e}")
+    print(f"   Current Critic LR: {scheduler_D.get_last_lr()[0]:.2e}")
+    print(f"   Critic Updates per Generator: {n_critic}")
+    print(f"   Gradient Penalty Lambda: {lambda_gp}")
+    print(f"   🆕 FIXED: Monitoring gradient norms (target: ~1.0)")
+    print(f"   Device: {device}")
+    print(f"   Total Batches per Epoch: {len(train_loader)}")
+
+    if checkpoint_path:
+        print(f"   📁 Resumed from: {os.path.basename(checkpoint_path)}")
+
+    # FINAL PRE-TRAINING DEVICE CONSISTENCY CHECK
     print(f"\n🔧 FINAL PRE-TRAINING DEVICE CONSISTENCY CHECK:")
     is_consistent = verify_device_consistency(generator, critic, ema_generator, device)
+
     if not is_consistent:
         print("🚨 CRITICAL: Device inconsistency detected before training!")
+        print("🔄 Attempting emergency device fix...")
+
         generator = generator.to(device)
         critic = critic.to(device)
+
         if ema_generator.ema.shadow_params:
             for name, param in ema_generator.ema.shadow_params.items():
                 ema_generator.ema.shadow_params[name] = param.to(device)
 
-    print(f"\n🚀 STARTING ENHANCED TRAINING WITH COMPOSITE METRICS LOGGING...")
+        print(f"🔧 Verifying emergency fix:")
+        verify_device_consistency(generator, critic, ema_generator, device)
+
+    print(f"\n🚀 STARTING/RESUMING ENHANCED TRAINING WITH FIXED WGAN-GP...")
     print("💡 Press Ctrl+C for graceful shutdown with checkpoint saving")
-    print("📊 All training metrics will be appended to existing logs for seamless resume")
     print("="*80)
 
-    # =============================================================================
-    # MAIN TRAINING LOOP
-    # =============================================================================
     start_time = time.time()
     best_wasserstein_dist = float('inf')
 
@@ -2323,10 +2212,6 @@ def train_enhanced_gan_with_resume_modified(dataset_key, config, resume_from_che
             progress_tracker.start_epoch()
             epoch_start_time = time.time()
 
-            # START EPOCH IN COMPOSITE METRICS LOGGER
-            metrics_logger.start_epoch(epoch + 1, num_epochs, len(train_loader))
-            metrics_logger.log_event("epoch_start", f"Started epoch {epoch + 1}/{num_epochs}")
-
             # Reset GP adjustment counter for new epoch
             gp_scheduler.reset_epoch_counter()
 
@@ -2335,7 +2220,7 @@ def train_enhanced_gan_with_resume_modified(dataset_key, config, resume_from_che
             g_losses = []
             wasserstein_distances = []
             gradient_penalties = []
-            gradient_norms = []
+            gradient_norms = []  # NEW: Track gradient norms
             batch_times = []
 
             # Update epoch progress bar description
@@ -2344,10 +2229,9 @@ def train_enhanced_gan_with_resume_modified(dataset_key, config, resume_from_che
             else:
                 epoch_pbar.set_description(f"🎯 Epoch {epoch+1}/{num_epochs}")
 
-            print(f"\n\n📅 EPOCH {epoch+1}/{num_epochs} - Enhanced Training with Composite Metrics Logging")
+            print(f"\n\n📅 EPOCH {epoch+1}/{num_epochs} - Enhanced Training with FIXED WGAN-GP")
             if start_epoch > 0 and epoch == start_epoch:
                 print(f"🔄 RESUMED from checkpoint at epoch {start_epoch}")
-                print(f"📊 Continuing existing log with {len(metrics_logger.training_data['step_metrics'])} previous steps")
             print("=" * 80)
 
             # Create batch progress bar
@@ -2362,11 +2246,9 @@ def train_enhanced_gan_with_resume_modified(dataset_key, config, resume_from_che
                 real_imgs = real_imgs.to(device)
                 labels = labels.to(device)
 
-                # =============================================================================
-                # TRAIN CRITIC
-                # =============================================================================
+                # Train Critic multiple times
                 critic_losses = []
-                last_grad_norm = 0
+                last_grad_norm = 0  # Initialize to track gradient norm from last critic iteration
 
                 for critic_iter in range(n_critic):
                     optimizer_D.zero_grad()
@@ -2376,14 +2258,16 @@ def train_enhanced_gan_with_resume_modified(dataset_key, config, resume_from_che
                     fake_labels_gen = torch.randint(0, config.num_classes, (current_batch_size,)).to(device)
                     fake_imgs = generator(z, fake_labels_gen)
 
-                    # Calculate critic loss with gradient norm monitoring
+                    # FIXED: Calculate critic loss with gradient norm monitoring
                     d_loss, d_real, d_fake, gp, wd, avg_grad_norm = wgan_loss.critic_loss(
                         critic, real_imgs, fake_imgs, labels, fake_labels_gen, device
                     )
 
-                    # Update GP lambda based on gradient norms
-                    new_lambda = gp_scheduler.update(avg_grad_norm)
+                    # FIXED: Update GP lambda based on gradient NORMS (not penalty values)
+                    new_lambda = gp_scheduler.update(avg_grad_norm)  # Pass gradient norm, not penalty
                     wgan_loss.lambda_gp = new_lambda
+
+                    # Store the gradient norm from the last iteration
                     last_grad_norm = avg_grad_norm
 
                     d_loss.backward()
@@ -2392,15 +2276,13 @@ def train_enhanced_gan_with_resume_modified(dataset_key, config, resume_from_che
 
                     critic_losses.append(d_loss.item())
 
-                # Store metrics from last critic iteration
+                # Use the last critic iteration's values for logging
                 d_losses.append(d_loss.item())
                 wasserstein_distances.append(wd)
                 gradient_penalties.append(gp.item())
-                gradient_norms.append(last_grad_norm)
+                gradient_norms.append(last_grad_norm)  # NEW: Track gradient norms
 
-                # =============================================================================
-                # TRAIN GENERATOR
-                # =============================================================================
+                # Train Generator
                 optimizer_G.zero_grad()
                 z = torch.randn(current_batch_size, latent_dim).to(device)
                 fake_labels_gen = torch.randint(0, config.num_classes, (current_batch_size,)).to(device)
@@ -2431,40 +2313,17 @@ def train_enhanced_gan_with_resume_modified(dataset_key, config, resume_from_che
                 batch_times.append(batch_time)
                 progress_tracker.update_batch_time(batch_time)
 
-                # =============================================================================
-                # LOG STEP METRICS TO COMPOSITE LOGGER
-                # =============================================================================
-                step_metrics = {
-                    "step": i + 1,
-                    "d_loss": d_loss.item(),
-                    "g_loss": g_loss.item(),
-                    "wd": wd,
-                    "gp": gp.item(),
-                    "grad_norm": last_grad_norm,
-                    "ema_quality": ema_generator.quality_score,
-                    "lr_g": scheduler_G.get_last_lr()[0],
-                    "lr_d": scheduler_D.get_last_lr()[0],
-                    "batch_time": batch_time,
-                    "lambda_gp": wgan_loss.lambda_gp,
-                    "memory_usage": memory_manager.get_memory_usage()
-                }
-
-                metrics_logger.log_step_metrics(step_metrics)
-
                 # Update batch progress bar
-                current_stats = metrics_logger.get_current_stats()
-                total_steps = current_stats["total_steps_completed"]
-                current_session = current_stats["current_session_id"]
+                current_lr_g = scheduler_G.get_last_lr()[0]
+                current_lr_d = scheduler_D.get_last_lr()[0]
 
                 batch_pbar.set_postfix({
                     'D_Loss': f'{d_loss.item():.4f}',
                     'G_Loss': f'{g_loss.item():.4f}',
                     'W_Dist': f'{wd:.4f}',
                     'GP': f'{gp.item():.3f}',
-                    'GradNorm': f'{last_grad_norm:.3f}',
+                    'GradNorm': f'{last_grad_norm:.3f}',  # NEW: Show gradient norm
                     'EMA_Q': f'{ema_generator.quality_score:.3f}',
-                    'Session': f'{current_session}',
-                    'TotalSteps': f'{total_steps}',
                     'Time': f'{batch_time:.2f}s'
                 })
 
@@ -2475,11 +2334,11 @@ def train_enhanced_gan_with_resume_modified(dataset_key, config, resume_from_che
                         'g_loss': g_loss.item(),
                         'wd': wd,
                         'gp': gp.item(),
-                        'grad_norm': last_grad_norm,
+                        'grad_norm': last_grad_norm,  # NEW: Include gradient norm
                         'batch_time': batch_time,
                         'ema_quality': ema_generator.quality_score,
-                        'lr_g': scheduler_G.get_last_lr()[0],
-                        'lr_d': scheduler_D.get_last_lr()[0]
+                        'lr_g': current_lr_g,
+                        'lr_d': current_lr_d
                     }
 
                     print_enhanced_step_details(i+1, len(train_loader), stats, progress_tracker,
@@ -2489,19 +2348,13 @@ def train_enhanced_gan_with_resume_modified(dataset_key, config, resume_from_che
             batch_pbar.close()
             print()
 
-            # =============================================================================
-            # END EPOCH PROCESSING
-            # =============================================================================
-            # End epoch in composite metrics logger (calculates summary automatically)
-            metrics_logger.end_epoch()
-
-            # Calculate epoch summary statistics
+            # Epoch summary
             epoch_time = time.time() - epoch_start_time
             avg_d_loss = np.mean(d_losses)
             avg_g_loss = np.mean(g_losses)
             avg_wd = np.mean(wasserstein_distances)
             avg_gp = np.mean(gradient_penalties)
-            avg_grad_norm = np.mean(gradient_norms)
+            avg_grad_norm = np.mean(gradient_norms)  # NEW: Average gradient norm
             avg_batch_time = np.mean(batch_times)
 
             # Prepare training stats for checkpoint manager
@@ -2510,7 +2363,7 @@ def train_enhanced_gan_with_resume_modified(dataset_key, config, resume_from_che
                 'avg_g_loss': avg_g_loss,
                 'avg_wd': avg_wd,
                 'avg_gp': avg_gp,
-                'avg_grad_norm': avg_grad_norm,
+                'avg_grad_norm': avg_grad_norm,  # NEW: Include gradient norm
                 'ema_quality': ema_generator.quality_score,
                 'epoch_time': epoch_time,
                 'avg_batch_time': avg_batch_time,
@@ -2519,174 +2372,90 @@ def train_enhanced_gan_with_resume_modified(dataset_key, config, resume_from_che
                 'current_lambda_gp': wgan_loss.lambda_gp,
             }
 
-            # Log epoch completion event with session info
-            current_stats = metrics_logger.get_current_stats()
-            metrics_logger.log_event("epoch_complete", f"Completed epoch {epoch + 1}", {
-                "epoch_duration": epoch_time,
-                "avg_d_loss": avg_d_loss,
-                "avg_g_loss": avg_g_loss,
-                "avg_wasserstein_distance": avg_wd,
-                "avg_gradient_norm": avg_grad_norm,
-                "session_id": current_stats["current_session_id"],
-                "total_epochs_completed": current_stats["total_epochs_completed"],
-                "total_steps_completed": current_stats["total_steps_completed"]
-            })
-
+            # Use the enhanced epoch summary function
             print_enhanced_epoch_summary(epoch + 1, training_stats)
 
-            # Display composite metrics info
-            print(f"📊 Composite Metrics Info:")
-            print(f"   🔄 Current Session: {current_stats['current_session_id']}")
-            print(f"   📈 Total Epochs Completed: {current_stats['total_epochs_completed']}")
-            print(f"   📊 Total Steps Logged: {current_stats['total_steps_completed']}")
-
-            # =============================================================================
-            # LEARNING RATE UPDATE
-            # =============================================================================
+            # Update learning rates
             scheduler_G.step()
             scheduler_D.step()
             new_lr_g = scheduler_G.get_last_lr()[0]
             new_lr_d = scheduler_D.get_last_lr()[0]
 
-            # =============================================================================
-            # TENSORBOARD LOGGING
-            # =============================================================================
+            # Log to tensorboard
             writer.add_scalar('Loss/Critic', avg_d_loss, epoch)
             writer.add_scalar('Loss/Generator', avg_g_loss, epoch)
             writer.add_scalar('WGAN/Wasserstein_Distance', avg_wd, epoch)
             writer.add_scalar('WGAN/Gradient_Penalty', avg_gp, epoch)
-            writer.add_scalar('WGAN/Gradient_Norm', avg_grad_norm, epoch)
+            writer.add_scalar('WGAN/Gradient_Norm', avg_grad_norm, epoch)  # NEW: Log gradient norm
             writer.add_scalar('WGAN/GP_Lambda', wgan_loss.lambda_gp, epoch)
             writer.add_scalar('EMA/Quality_Score', ema_generator.quality_score, epoch)
             writer.add_scalar('Learning_Rate/Generator', new_lr_g, epoch)
             writer.add_scalar('Learning_Rate/Critic', new_lr_d, epoch)
 
-            # =============================================================================
-            # LIVE PLOT UPDATE
-            # =============================================================================
+            # Update live plot
             try:
                 live_plotter.update(epoch + 1, avg_d_loss, avg_g_loss, avg_wd, avg_gp,
                                     new_lr_g, new_lr_d, ema_generator.quality_score)
             except Exception as e:
                 print(f"⚠️  Live plot update failed: {e}")
 
-            # =============================================================================
-            # CHECKPOINT SAVING
-            # =============================================================================
+            # 🆕 SAVE CHECKPOINT EVERY 5 EPOCHS
             if (epoch + 1) % 5 == 0:
-                print(f"💾 Auto-saving checkpoint for epoch {epoch+1}...")
-                checkpoint_saved = save_checkpoint_enhanced(
+                print(f"💾 Auto-saving checkpoint for epoch {epoch+1} (5-epoch interval)...")
+                save_checkpoint_enhanced(
                     dataset_key, epoch + 1, generator, critic, ema_generator,
                     optimizer_G, optimizer_D, scheduler_G, scheduler_D,
                     training_stats, "regular"
                 )
 
-                if checkpoint_saved:
-                    metrics_logger.log_event("checkpoint_saved", f"Regular checkpoint saved", {
-                        "epoch": epoch + 1,
-                        "checkpoint_type": "regular",
-                        "file_path": checkpoint_saved,
-                        "session_id": current_stats["current_session_id"]
-                    })
-
-            # =============================================================================
-            # IMAGE GENERATION
-            # =============================================================================
+            # Generate and save images every 5 epochs
             if (epoch + 1) % 5 == 0 or epoch == 0:
                 print(f"🎨 Generating sample images for epoch {epoch+1}...")
                 save_enhanced_generated_images(epoch + 1, fixed_noise, fixed_labels,
                                                ema_generator, config, dataset_key)
 
-                metrics_logger.log_event("images_generated", f"Sample images generated", {
-                    "epoch": epoch + 1,
-                    "num_samples": 64,
-                    "session_id": current_stats["current_session_id"]
-                })
-
-            # =============================================================================
-            # BEST MODEL TRACKING
-            # =============================================================================
+            # Track best model
             if abs(avg_wd) < best_wasserstein_dist:
                 best_wasserstein_dist = abs(avg_wd)
                 print(f"🏆 New best model! Wasserstein Distance: {best_wasserstein_dist:.6f}")
-                best_checkpoint = save_checkpoint_enhanced(
+                save_checkpoint_enhanced(
                     dataset_key, epoch + 1, generator, critic, ema_generator,
                     optimizer_G, optimizer_D, scheduler_G, scheduler_D,
                     training_stats, "best"
                 )
-
-                metrics_logger.log_event("best_model_updated", f"New best model found", {
-                    "epoch": epoch + 1,
-                    "wasserstein_distance": best_wasserstein_dist,
-                    "checkpoint_path": best_checkpoint,
-                    "session_id": current_stats["current_session_id"]
-                })
 
             # Update epoch progress bar
             epoch_pbar.set_postfix({
                 'D_Loss': f'{avg_d_loss:.4f}',
                 'G_Loss': f'{avg_g_loss:.4f}',
                 'W_Dist': f'{avg_wd:.4f}',
-                'GradNorm': f'{avg_grad_norm:.3f}',
-                'EMA_Q': f'{ema_generator.quality_score:.3f}',
-                'Session': f'{current_stats["current_session_id"]}',
-                'TotalSteps': f'{current_stats["total_steps_completed"]}'
+                'GradNorm': f'{avg_grad_norm:.3f}',  # NEW: Show gradient norm
+                'EMA_Q': f'{ema_generator.quality_score:.3f}'
             })
 
             print("=" * 80)
 
-            # Update checkpoint manager with current state after each epoch
-            checkpoint_manager.update_current_state(epoch + 1, training_stats)
-
     except KeyboardInterrupt:
-        print(f"\n🚨 Training interrupted by user - logging final state...")
-        metrics_logger.log_event("training_interrupted", "Training stopped by user (Ctrl+C)")
+        # This will be handled by the signal handler
         pass
     except Exception as e:
-        print(f"\n❌ Training error occurred...")
-
-        # Try to finalize metrics on error
-        if metrics_logger:
-            try:
-                print("📊 Attempting to finalize metrics after error...")
-                metrics_logger.finalize_training()
-                print("✅ Metrics finalized after error!")
-            except:
-                print("❌ Failed to finalize metrics after error")
-
-        # Mark abnormal exit and re-raise
-        checkpoint_manager._abnormal_exit = True
+        # This will be handled by the error handler decorator
         raise e
 
-    # =============================================================================
-    # TRAINING COMPLETION
-    # =============================================================================
+    # Close epoch progress bar
     epoch_pbar.close()
 
     # Save final checkpoint
     print(f"\n💾 Saving final checkpoint...")
-    final_checkpoint = save_checkpoint_enhanced(
+    save_checkpoint_enhanced(
         dataset_key, epoch + 1, generator, critic, ema_generator,
         optimizer_G, optimizer_D, scheduler_G, scheduler_D,
         training_stats, "final"
     )
 
-    # Log final checkpoint
-    current_stats = metrics_logger.get_current_stats()
-    metrics_logger.log_event("final_checkpoint_saved", "Final training checkpoint saved", {
-        "checkpoint_path": final_checkpoint,
-        "session_id": current_stats["current_session_id"]
-    })
-
-    # FINALIZE COMPOSITE METRICS LOGGING
-    print(f"\n📊 FINALIZING COMPOSITE METRICS LOGGING...")
-    metrics_logger.finalize_training()
-
-    # Training completion summary
+    # Training completion
     total_time = time.time() - start_time
-    final_stats = metrics_logger.get_current_stats()
-
-    print(f"\n🎉 ENHANCED TRAINING COMPLETED WITH COMPOSITE METRICS LOGGING!")
+    print(f"\n🎉 ENHANCED TRAINING COMPLETED WITH FIXED WGAN-GP!")
     print("="*80)
     print(f"⏱️ Total Training Time: {total_time/60:.1f} minutes")
     print(f"🏆 Best Wasserstein Distance: {best_wasserstein_dist:.6f}")
@@ -2697,21 +2466,6 @@ def train_enhanced_gan_with_resume_modified(dataset_key, config, resume_from_che
     print(f"🖥️  Training Device: {device}")
     if start_epoch > 0:
         print(f"🔄 Successfully resumed from epoch {start_epoch}")
-
-    # Display composite metrics logging summary
-    print(f"\n📄 COMPOSITE METRICS LOGGING SUMMARY:")
-    print(f"   📊 Total step metrics logged: {final_stats['total_steps_completed']}")
-    print(f"   📅 Total epoch summaries: {final_stats['total_epochs_completed']}")
-    print(f"   🔄 Training sessions: {final_stats['total_sessions']}")
-    print(f"   🗓️  Training events: {len(metrics_logger.training_data['training_events'])}")
-    print(f"   📁 Log files (composite across all sessions):")
-    print(f"      • Step metrics: {metrics_logger.step_metrics_file.name}")
-    print(f"      • Epoch summaries: {metrics_logger.epoch_summaries_file.name}")
-    print(f"      • Complete log: {metrics_logger.full_training_log.name}")
-
-    # Display session summary
-    print(f"\n🔄 {metrics_logger.get_session_summary()}")
-
     print("="*80)
 
     writer.close()
@@ -2924,10 +2678,10 @@ def enhanced_interpolate_latent_space(ema_generator, config, dataset_key, class1
 
 # Modified main function to integrate all changes
 def main_with_checkpoint_support_enhanced():
-    """Enhanced main function with composite metrics logging for seamless resume"""
+    """Enhanced main function with complete checkpoint integration"""
 
     print("=" * 100)
-    print("🎨 ENHANCED MULTI-DATASET DCGAN WITH COMPOSITE METRICS LOGGING")
+    print("🎨 ENHANCED MULTI-DATASET DCGAN WITH ADVANCED CHECKPOINTING")
     print("=" * 100)
     print("🚀 Advanced Features:")
     print("1. ✅ WGAN-GP Loss with Gradient Penalty")
@@ -2940,49 +2694,27 @@ def main_with_checkpoint_support_enhanced():
     print("8. ✅ Comprehensive Training Analytics")
     print("9. ✅ Multi-Dataset Support (MNIST & CIFAR-10)")
     print("10. ✅ Checkpoint Resume Capability")
-    print("11. ✅ AUTO-SAVE EVERY 5 EPOCHS")
-    print("12. ✅ GRACEFUL INTERRUPT HANDLING (Ctrl+C)")
-    print("13. ✅ EMERGENCY ERROR RECOVERY")
-    print("14. ✅ 🆕 COMPOSITE METRICS LOGGING")
-    print("15. ✅ 🆕 SEAMLESS RESUME LOGGING")
-    print("16. ✅ 🆕 MULTI-SESSION TRACKING")
-    print("17. ✅ 🆕 CONTINUOUS LOG APPENDING")
+    print("11. ✅ 🆕 AUTO-SAVE EVERY 5 EPOCHS")
+    print("12. ✅ 🆕 GRACEFUL INTERRUPT HANDLING (Ctrl+C)")
+    print("13. ✅ 🆕 EMERGENCY ERROR RECOVERY")
     print("=" * 100)
 
-    # =============================================================================
-    # USER INPUT AND CONFIGURATION
-    # =============================================================================
+    # Check for tqdm availability
+    if not TQDM_AVAILABLE:
+        print("\n⚠️  NOTICE: For the best experience with progress bars, install tqdm:")
+        print("   pip install tqdm")
+        print("   (Fallback progress bars will be used)")
+        time.sleep(2)
 
     # Get user's dataset choice
     dataset_key = get_dataset_choice()
     config = DATASETS[dataset_key]
 
-    # Ask for experiment name
-    print(f"\n🔬 EXPERIMENT CONFIGURATION:")
-    experiment_name = input(f"Enter experiment name (optional, press Enter to skip): ").strip()
-    if not experiment_name:
-        experiment_name = None
-        print("✅ Using default experiment naming")
-    else:
-        print(f"✅ Experiment name: {experiment_name}")
-
-    # Check for existing logs
-    print(f"\n🔍 CHECKING FOR EXISTING LOGS...")
-    temp_logger = CompositeEnhancedMetricsLogger(dataset_key, experiment_name)
-    if temp_logger.existing_log_found:
-        print(f"✅ Found existing training logs!")
-        print(f"   📊 Previous steps: {len(temp_logger.training_data['step_metrics'])}")
-        print(f"   📅 Previous epochs: {len(temp_logger.training_data['epoch_summaries'])}")
-        print(f"   🔄 Training sessions: {len(temp_logger.training_data['training_sessions'])}")
-        print(f"   📁 Log files: {temp_logger.base_experiment_id}_*.json")
-    else:
-        print(f"🆕 No existing logs found - will create new experiment")
-
     # Ask if user wants to resume from checkpoint
     print(f"\n🔄 CHECKPOINT OPTIONS FOR {config.name}:")
     print("1. 📋 List all available checkpoints")
-    print("2. 🔄 Resume from checkpoint (composite logging will continue existing logs)")
-    print("3. 🆕 Start fresh training (new logs)")
+    print("2. 🔄 Resume from checkpoint")
+    print("3. 🆕 Start fresh training")
 
     while True:
         try:
@@ -3002,76 +2734,104 @@ def main_with_checkpoint_support_enhanced():
             print("\nExiting...")
             exit()
 
-    # Ask for number of epochs
-    while True:
-        try:
-            epochs_input = input(f"\nNumber of training epochs (default: 50): ").strip()
-            num_epochs = int(epochs_input) if epochs_input else 50
-            if num_epochs > 0:
-                break
-            print("Please enter a positive number")
-        except ValueError:
-            print("Please enter a positive number")
-        except KeyboardInterrupt:
-            print("\nExiting...")
-            exit()
-
-    # =============================================================================
-    # CONFIGURATION SUMMARY
-    # =============================================================================
-
-    print(f"\n✅ Training Configuration:")
-    print(f"   🎯 Dataset: {config.name}")
-    print(f"   🔬 Experiment: {experiment_name or 'Default naming'}")
-    print(f"   📅 Epochs: {num_epochs}")
-    print(f"   🔄 Resume: {'Yes (composite logging will continue existing logs)' if resume_from_checkpoint else 'Fresh start'}")
-    print(f"   📊 Metrics Logging: Composite (seamless across multiple sessions)")
-
     if not resume_from_checkpoint:
-        print("🆕 Starting fresh training with composite metrics logging...")
-    else:
-        print("🔄 Resuming training - composite logger will automatically continue existing logs...")
-
-    # =============================================================================
-    # SETUP AND PREPARATION
-    # =============================================================================
+        print("🆕 Starting fresh training...")
 
     # Display enhancement details
     display_enhancement_details(dataset_key)
 
-    print(f"\n🚀 Starting enhanced automated workflow with composite metrics logging...")
+    print(f"\n🚀 Starting enhanced automated workflow for {config.name}...")
 
     # Create enhanced directory structure
     directories = [
-        './outputs', './models', './training_logs',
-        f'./outputs/{dataset_key}', f'./models/{dataset_key}',
+        './outputs', './models', f'./outputs/{dataset_key}', f'./models/{dataset_key}',
         f'./outputs/{dataset_key}/enhanced', f'./models/{dataset_key}/enhanced',
-        f'./models/{dataset_key}/emergency'
+        f'./models/{dataset_key}/emergency'  # Add emergency directory
     ]
 
     for directory in directories:
         os.makedirs(directory, exist_ok=True)
 
     print(f"📁 Created enhanced directory structure for {config.name}")
-    print(f"📊 Composite metrics logging directory: ./training_logs/")
+    print(f"🚨 Emergency checkpoint directory: ./models/{dataset_key}/emergency/")
 
-    # Load dataset
-    print(f"\n📥 Loading {config.name} dataset...")
+    # Load dataset with appropriate transforms
+    print(f"\n📥 Loading {config.name} dataset with progress tracking...")
     transform = get_transforms(dataset_key)
-    train_dataset = get_dataset(dataset_key, transform)
+
+    # Show dataset loading progress
+    with tqdm(total=1, desc="📦 Downloading Dataset", ncols=80, colour='cyan') as pbar:
+        train_dataset = get_dataset(dataset_key, transform)
+        pbar.update(1)
+        pbar.set_description("✅ Dataset Downloaded")
+
+    # Create data loader with progress indication
+    print(f"🔄 Creating optimized data loader...")
+    global train_loader
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset, batch_size=128, shuffle=True, num_workers=2
+    )
 
     print(f"✅ Dataset loaded successfully!")
     print(f"   📊 Training samples: {len(train_dataset):,}")
+    print(f"   📦 Batch size: 128")
+    print(f"   🔄 Total batches per epoch: {len(train_loader):,}")
 
-    # =============================================================================
-    # START TRAINING
-    # =============================================================================
+    # Display enhanced sample from dataset
+    print(f"\n📊 Generating enhanced dataset preview...")
+    sample_batch = next(iter(train_loader))
+    sample_imgs, sample_labels = sample_batch
+    class_names = get_class_names(dataset_key)
 
-    # Start enhanced training with composite metrics logging
-    print(f"\n🎯 Beginning enhanced training with composite metrics logging...")
-    print(f"⚠️  All training metrics will be seamlessly appended to existing logs")
-    print(f"📊 Multi-session tracking with continuous log appending")
-    print(f"💡 Press Ctrl+C anytime for graceful shutdown")
+    # Create preview with progress bar
+    with tqdm(total=10, desc="🖼️  Creating Preview", ncols=80, colour='magenta') as pbar:
+        fig, axes = plt.subplots(2, 5, figsize=(15, 8))
+        for i in range(10):
+            row, col = i // 5, i % 5
+            img = sample_imgs[i]
+            if config.channels == 1:
+                axes[row, col].imshow(img.squeeze(), cmap='gray')
+            else:
+                # Denormalize for display
+                img = img * 0.5 + 0.5
+                axes[row, col].imshow(img.permute(1, 2, 0))
+            axes[row, col].set_title(f'{class_names[sample_labels[i]]}', fontsize=12)
+            axes[row, col].axis('off')
+            pbar.update(1)
+
+    plt.suptitle(f'{config.name} Dataset Sample - Enhanced Preview', fontsize=16)
+    plt.tight_layout()
+    plt.show()
+
+    print(f"\n🏗️  Initializing enhanced {config.name}-specific model architecture...")
+
+    # Model initialization progress
+    with tqdm(total=4, desc="🤖 Initializing Models", ncols=80, colour='yellow') as pbar:
+        pbar.set_description("🤖 Creating Generator")
+        time.sleep(0.5)
+        pbar.update(1)
+
+        pbar.set_description("🤖 Creating Critic")
+        time.sleep(0.5)
+        pbar.update(1)
+
+        pbar.set_description("🤖 Applying Enhancements")
+        time.sleep(0.5)
+        pbar.update(1)
+
+        pbar.set_description("✅ Models Ready")
+        pbar.update(1)
+
+    print(f"\n🛡️  ENHANCED CHECKPOINT SYSTEM ACTIVE:")
+    print(f"   🔄 Auto-save every 5 epochs")
+    print(f"   ⚡ Graceful shutdown on Ctrl+C")
+    print(f"   🚨 Emergency checkpoint on errors")
+    print(f"   📁 Emergency saves: ./models/{dataset_key}/emergency/")
+    print(f"   🔒 Signal handling for clean interrupts")
+
+    print(f"\n🎯 Beginning enhanced automated training process...")
+    print(f"⚠️  Training will show live progress bars and streaming updates")
+    print(f"💡 Press Ctrl+C anytime for graceful shutdown with checkpoint saving")
 
     # Countdown to training start
     for i in range(3, 0, -1):
@@ -3079,38 +2839,42 @@ def main_with_checkpoint_support_enhanced():
         time.sleep(1)
     print("🚀 Starting training now! " + " " * 20)
 
-    # Start enhanced training with composite metrics logging
-    ema_generator, critic = train_enhanced_gan_with_resume_modified(
-        dataset_key, config, resume_from_checkpoint, num_epochs, experiment_name
-    )
+    # Start enhanced training with all checkpoint features
+    ema_generator, critic = train_enhanced_gan_with_resume_modified(dataset_key, config, resume_from_checkpoint)
 
-    # =============================================================================
-    # POST-TRAINING ACTIVITIES
-    # =============================================================================
-
+    # Post-training activities (same as original)
     print(f"\n🎨 Generating enhanced final examples for {config.name}...")
 
     # Generate samples for all classes
     print("🎭 Creating class-specific samples...")
     all_classes = list(range(config.num_classes))
+
+    with tqdm(total=len(all_classes), desc="🎨 Generating Classes", ncols=80, colour='green') as pbar:
+        for class_idx in all_classes:
+            pbar.set_description(f"🎨 Generating {get_class_names(dataset_key)[class_idx]}")
+            time.sleep(0.1)
+            pbar.update(1)
+
     generate_enhanced_specific_classes(ema_generator, config, dataset_key, all_classes, num_each=6)
 
     # Show enhanced interpolation
     print(f"\n🌈 Creating enhanced latent space interpolations...")
+
     if dataset_key == 'mnist':
         interpolations = [(3, 8, "3→8"), (0, 6, "0→6"), (4, 9, "4→9")]
     else:  # cifar10
         interpolations = [(3, 5, "cat→dog"), (0, 1, "plane→car"), (2, 7, "bird→horse")]
 
-    for class1, class2, desc in interpolations:
-        enhanced_interpolate_latent_space(ema_generator, config, dataset_key, class1, class2, steps=10)
+    with tqdm(total=len(interpolations), desc="🌈 Creating Interpolations", ncols=80, colour='magenta') as pbar:
+        for class1, class2, desc in interpolations:
+            pbar.set_description(f"🌈 Interpolating {desc}")
+            enhanced_interpolate_latent_space(ema_generator, config, dataset_key, class1, class2, steps=10)
+            pbar.update(1)
+            time.sleep(0.5)
 
-    # =============================================================================
-    # FINAL COMPREHENSIVE SUMMARY
-    # =============================================================================
-
+    # Final comprehensive summary
     print(f"\n" + "="*100)
-    print("🎉 ENHANCED AUTOMATED WORKFLOW WITH COMPOSITE METRICS LOGGING COMPLETED!")
+    print("🎉 ENHANCED AUTOMATED WORKFLOW WITH ADVANCED CHECKPOINTING COMPLETED!")
     print("="*100)
 
     summary_items = [
@@ -3118,17 +2882,16 @@ def main_with_checkpoint_support_enhanced():
         "🔄 Advanced Checkpoint Management",
         "🤖 Model Training with Auto-Save",
         "🛡️  Graceful Interrupt Handling",
-        "📊 Composite Metrics Logging",
-        "🔄 Seamless Resume Logging",
         "🎨 Sample Generation",
         "🌈 Interpolation Creation",
-        "📋 Multi-Session Analytics Export",
-        "💾 Complete State Preservation"
+        "📊 Quality Assessment",
+        "💾 Comprehensive Model Saving"
     ]
 
     print("📋 WORKFLOW COMPLETION SUMMARY:")
     for item in summary_items:
         print(f"   ✅ {item}")
+        time.sleep(0.2)
 
     print(f"\n📊 FINAL TRAINING STATISTICS:")
     print(f"   🎯 Dataset: {config.name}")
@@ -3141,16 +2904,8 @@ def main_with_checkpoint_support_enhanced():
     print(f"   🤖 Enhanced Models: ./models/{dataset_key}/enhanced/")
     print(f"   📦 Regular Checkpoints: ./models/{dataset_key}_enhanced_epoch_*.pth")
     print(f"   🚨 Emergency Checkpoints: ./models/{dataset_key}/emergency/")
-    print(f"   📊 📊 COMPOSITE METRICS LOGS: ./training_logs/")
     if TENSORBOARD_AVAILABLE:
-        print(f"   📈 TensorBoard Logs: ./runs/{dataset_key}_enhanced_gan*/")
-
-    print(f"\n📊 📊 COMPOSITE METRICS LOGGING FILES:")
-    print(f"   📄 Step-by-step metrics: {dataset_key}_*_step_metrics.json")
-    print(f"   📋 Epoch summaries: {dataset_key}_*_epoch_summaries.json")
-    print(f"   📖 Complete training log: {dataset_key}_*_complete_training_log.json")
-    print(f"   🔄 Multi-session support: Seamlessly appends across resume sessions")
-    print(f"   💡 Use these JSON files for detailed analysis and visualization")
+        print(f"   📊 TensorBoard Logs: ./runs/{dataset_key}_enhanced_gan*/")
 
     print(f"\n🚀 Enhanced Features Successfully Implemented:")
     enhancements = [
@@ -3163,13 +2918,9 @@ def main_with_checkpoint_support_enhanced():
         "Live Progress Bars - Enhanced user experience",
         "Terminal Streaming - Detailed step analysis",
         "Checkpoint Resume - Continue from any saved state",
-        "Auto-Save Every 5 Epochs - Frequent progress saves",
-        "Graceful Interrupt (Ctrl+C) - Safe shutdown",
-        "Emergency Error Recovery - Crash-proof training",
-        "🆕 Composite Metrics Logging - Multi-session support",
-        "🆕 Seamless Resume Logging - Continues existing logs",
-        "🆕 Session Tracking - Complete training history",
-        "🆕 Continuous Data Appending - No data loss on resume"
+        "🆕 Auto-Save Every 5 Epochs - Frequent progress saves",
+        "🆕 Graceful Interrupt (Ctrl+C) - Safe shutdown",
+        "🆕 Emergency Error Recovery - Crash-proof training"
     ]
 
     for i, enhancement in enumerate(enhancements, 1):
@@ -3178,132 +2929,101 @@ def main_with_checkpoint_support_enhanced():
     print(f"\n💡 Enhanced Next Steps:")
     next_steps = [
         f"Load final model: ./models/{dataset_key}/enhanced/final_enhanced_model.pth",
-        f"Analyze composite training metrics: Check ./training_logs/ for JSON files",
-        f"Visualize multi-session progress: Use composite analysis tools",
-        f"Study session progression: Review complete_training_log.json",
-        f"Compare session performance: Analyze session-specific data",
-        f"Resume from any checkpoint: All logs will be continuous",
-        f"Emergency recovery: Check ./models/{dataset_key}/emergency/ if needed"
+        f"Resume from any checkpoint: Select from available saves",
+        f"Emergency recovery: Check ./models/{dataset_key}/emergency/ if needed",
+        "Generate with enhanced quality using EMA parameters",
+        "Explore enhanced latent space interpolations"
     ]
 
     for step in next_steps:
         print(f"   💡 {step}")
 
-    print(f"\n📊 📊 COMPOSITE METRICS ANALYSIS EXAMPLES:")
-    print(f"   📈 Python: from composite_enhanced_metrics_logger import analyze_composite_training_metrics")
-    print(f"   📊 Analysis: analyze_composite_training_metrics('./training_logs/{dataset_key}_*_complete_training_log.json')")
-    print(f"   🎨 Multi-session plots: Session boundaries and progression visualization")
-    print(f"   📋 Session comparison: Compare performance across training sessions")
+    print(f"\n🛡️  CHECKPOINT MANAGEMENT COMMANDS:")
+    print(f"   📋 List all checkpoints: python script.py list")
+    print(f"   🚀 Quick resume latest: python script.py resume {dataset_key}")
+    print(f"   🔍 Interactive mode: python script.py")
+    print(f"   🚨 Emergency recovery: Check emergency directory for crash saves")
 
     if TENSORBOARD_AVAILABLE:
-        print(f"\n📈 View enhanced training metrics:")
+        print(f"\n📊 View enhanced training metrics:")
         print(f"   tensorboard --logdir ./runs/")
         print(f"   Then open: http://localhost:6006")
 
     print("="*100)
-    print("🎊 Thank you for using Enhanced Multi-Dataset DCGAN with Composite Metrics Logging!")
-    print("📊 All your training data across multiple sessions is now seamlessly logged!")
-    print("🔄 Resume training anytime - your logs will continue automatically!")
+    print("\n🖥️  Enhanced live training plot will remain open.")
+    print("💡 All progress bars and monitoring are now complete!")
+    print("🛡️  Emergency checkpoint system remains active!")
+    print("🎊 Thank you for using Enhanced Multi-Dataset DCGAN with Advanced Checkpointing!")
+    print("Press Ctrl+C to exit the program gracefully.")
 
     try:
         print("\n⏳ Keeping plots alive... (Press Ctrl+C to exit)")
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        print("\n\n👋 Graceful exit completed! Your composite metrics are saved!")
+        print("\n\n👋 Graceful exit completed! Goodbye!")
+        print("🎉 Training session completed successfully!")
         plt.close('all')
 
 # =============================================================================
-# COMMAND LINE INTERFACE WITH COMPOSITE LOGGING SUPPORT
+# COMMAND LINE INTERFACE WITH CHECKPOINT SUPPORT
 # =============================================================================
-
-if __name__ == "__main__":
-    import sys
-
-    if len(sys.argv) > 1:
-        command = sys.argv[1].lower()
-
-        if command == "analyze" and len(sys.argv) > 2:
-            log_file_path = sys.argv[2]
-            # Use the composite analysis function
-            analyze_composite_training_metrics(log_file_path)
-
-        elif command == "list":
-            list_all_checkpoints()
-
-        elif command == "resume" and len(sys.argv) > 2:
-            dataset_key = sys.argv[2].lower()
-            if dataset_key in ['mnist', 'cifar10']:
-                checkpoint_path = quick_resume_latest(dataset_key)
-                if checkpoint_path:
-                    print(f"🚀 Quick resuming from: {os.path.basename(checkpoint_path)}")
-                    print(f"📊 Composite logging will automatically continue existing logs")
-                    main_with_checkpoint_support_enhanced()
-                else:
-                    print("❌ No checkpoints found for quick resume")
-            else:
-                print("❌ Invalid dataset. Use 'mnist' or 'cifar10'")
-
-        elif command == "sessions" and len(sys.argv) > 2:
-            # New command to show session information
-            dataset_key = sys.argv[2].lower()
-            if dataset_key in ['mnist', 'cifar10']:
-                temp_logger = CompositeEnhancedMetricsLogger(dataset_key)
-                if temp_logger.existing_log_found:
-                    print(f"\n🔄 TRAINING SESSIONS FOR {dataset_key.upper()}:")
-                    print("=" * 50)
-                    print(temp_logger.get_session_summary())
-
-                    # Show log file sizes
-                    if temp_logger.step_metrics_file.exists():
-                        size_mb = temp_logger.step_metrics_file.stat().st_size / (1024*1024)
-                        print(f"📄 Step metrics file: {size_mb:.1f} MB")
-                    if temp_logger.epoch_summaries_file.exists():
-                        size_mb = temp_logger.epoch_summaries_file.stat().st_size / (1024*1024)
-                        print(f"📋 Epoch summaries file: {size_mb:.1f} MB")
-                    if temp_logger.full_training_log.exists():
-                        size_mb = temp_logger.full_training_log.stat().st_size / (1024*1024)
-                        print(f"📖 Complete log file: {size_mb:.1f} MB")
-                else:
-                    print(f"❌ No training sessions found for {dataset_key}")
-            else:
-                print("❌ Invalid dataset. Use 'mnist' or 'cifar10'")
-
-        elif command == "help":
-            print("\n🎨 Enhanced DCGAN with Composite Metrics Logging - Command Line Help")
-            print("=" * 80)
-            print("Usage:")
-            print("  python script.py                              # Interactive mode")
-            print("  python script.py analyze path/to/log.json     # Analyze composite training metrics")
-            print("  python script.py list                         # List all checkpoints")
-            print("  python script.py resume mnist                 # Quick resume latest MNIST")
-            print("  python script.py resume cifar10               # Quick resume latest CIFAR-10")
-            print("  python script.py sessions mnist               # Show training sessions for MNIST")
-            print("  python script.py sessions cifar10             # Show training sessions for CIFAR-10")
-            print("  python script.py help                         # Show this help")
-            print("\n📊 📊 NEW: Composite Metrics Logging Features:")
-            print("  • Seamless resume logging across multiple training sessions")
-            print("  • Automatic detection and continuation of existing logs")
-            print("  • Multi-session tracking with session boundaries")
-            print("  • Continuous data appending without data loss")
-            print("  • Session-specific analytics and comparisons")
-            print("  • Complete training history preservation")
-            print("\n📁 Composite Metrics Files Generated:")
-            print("  • {dataset}_*_step_metrics.json               # All step data across sessions")
-            print("  • {dataset}_*_epoch_summaries.json            # Epoch aggregations across sessions")
-            print("  • {dataset}_*_complete_training_log.json      # Full session log with history")
-            print("\n🔄 Resume Behavior:")
-            print("  • When resuming training, logs automatically continue")
-            print("  • Session boundaries are tracked and marked")
-            print("  • No duplicate or lost data across resume sessions")
-            print("  • Complete training timeline preserved")
-            print("\n🔬 Composite Analysis Examples:")
-            print("  python script.py analyze ./training_logs/mnist_*_complete_training_log.json")
-            print("  python script.py sessions mnist  # Show all training sessions")
-            print("  # This will create multi-session visualizations with session boundaries")
-            print("=" * 80)
-        else:
-            print("❌ Unknown command. Use 'help' for usage information.")
-    else:
-        # Interactive mode with composite metrics logging
-        main_with_checkpoint_support_enhanced()
+#
+# # Updated command line interface
+# if __name__ == "__main__":
+#     import sys
+#
+#     # Command line arguments for quick operations
+#     if len(sys.argv) > 1:
+#         command = sys.argv[1].lower()
+#
+#         if command == "list":
+#             list_all_checkpoints()
+#         elif command == "resume" and len(sys.argv) > 2:
+#             dataset_key = sys.argv[2].lower()
+#             if dataset_key in ['mnist', 'cifar10']:
+#                 checkpoint_path = quick_resume_latest(dataset_key)
+#                 if checkpoint_path:
+#                     print(f"🚀 Quick resuming from: {os.path.basename(checkpoint_path)}")
+#                     main_with_checkpoint_support_enhanced()
+#                 else:
+#                     print("❌ No checkpoints found for quick resume")
+#             else:
+#                 print("❌ Invalid dataset. Use 'mnist' or 'cifar10'")
+#         elif command == "help":
+#             print("\n🎨 Enhanced DCGAN with Advanced Checkpointing - Command Line Help")
+#             print("=" * 70)
+#             print("Usage:")
+#             print("  python script.py                         # Interactive mode")
+#             print("  python script.py list                    # List all checkpoints")
+#             print("  python script.py resume mnist            # Quick resume latest MNIST")
+#             print("  python script.py resume cifar10          # Quick resume latest CIFAR-10")
+#             print("  python script.py help                    # Show this help")
+#             print("\n🛡️  Advanced Checkpoint Features:")
+#             print("  • Auto-save every 5 epochs (instead of 25)")
+#             print("  • Graceful interrupt handling (Ctrl+C)")
+#             print("  • Emergency checkpoint on unexpected errors")
+#             print("  • Signal handling for clean shutdowns")
+#             print("  • Comprehensive state preservation")
+#             print("\n🔄 Interactive Mode Features:")
+#             print("  • Choose dataset (MNIST or CIFAR-10)")
+#             print("  • List and select from available checkpoints")
+#             print("  • Resume from any epoch or start fresh")
+#             print("  • Live progress monitoring and health assessment")
+#             print("  • Real-time interrupt handling")
+#             print("\n📁 Checkpoint Types:")
+#             print("  • Regular: ./models/{dataset}_enhanced_epoch_{epoch}.pth")
+#             print("  • Best: ./models/{dataset}_best_enhanced_model.pth")
+#             print("  • Final: ./models/{dataset}/enhanced/final_enhanced_model.pth")
+#             print("  • Emergency: ./models/{dataset}/emergency/{timestamp}.pth")
+#             print("\n🚨 Emergency Features:")
+#             print("  • Automatic save on Ctrl+C")
+#             print("  • Crash recovery checkpoints")
+#             print("  • Signal handling (SIGINT, SIGTERM)")
+#             print("  • Error traceback with state preservation")
+#             print("=" * 70)
+#         else:
+#             print("❌ Unknown command. Use 'help' for usage information.")
+#     else:
+#         # Interactive mode with enhanced features
+#         main_with_checkpoint_support_enhanced()

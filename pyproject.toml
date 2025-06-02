@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "enhanced-dcgan-research"
-version = "0.1.1"
+version = "0.1.2"
 authors = [
     {name = "Jahidul Arafat", email = "jahidapon@gmail.com"},
 ]
@@ -48,4 +48,4 @@ Repository = "https://github.com/jahidul-arafat/gan-mnist-cifar.git"
 "Bug Tracker" = "https://github.com/jahidul-arafat/gan-mnist-cifar/issues"
 
 [project.scripts]
-enhanced-dcgan = "enhanced_dcgan_research.fully_integrated_report_v04:main"
+enhanced-dcgan = "enhanced_dcgan_research.cli:main"

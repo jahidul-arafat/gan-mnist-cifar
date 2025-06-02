@@ -1,0 +1,669 @@
+setupEventListeners() {{
+                // Mouse events for dragging
+                this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+                this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+                this.canvas.addEventListener('mouseup', (e) => this.handleMouseUp(e));
+                this.canvas.addEventListener('mouseleave', (e) => this.handleMouseUp(e));
+                
+                // Touch events for mobile
+                this.canvas.addEventListener('touchstart', (e) => this.handleTouchStart(e));
+                this.canvas.addEventListener('touchmove', (e) => this.handleTouchMove(e));
+                this.canvas.addEventListener('touchend', (e) => this.handleTouchEnd(e));
+            }}
+            
+            getMousePos(e) {{
+                const rect = this.canvas.getBoundingClientRect();
+                return {{
+                    x: (e.clientX - rect.left) * 2,
+                    y: (e.clientY - rect.top) * 2
+                }};
+            }}
+            
+            findCellAt(x, y) {{
+                for (let cell of this.cells) {{
+                    const dx = x - cell.x;
+                    const dy = y - cell.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance <= cell.radius) {{
+                        return cell;
+                    }}
+                }}
+                return null;
+            }}
+            
+            handleMouseDown(e) {{
+                const mousePos = this.getMousePos(e);
+                const cell = this.findCellAt(mousePos.x, mousePos.y);
+                
+                if (cell) {{
+                    this.isDragging = true;
+                    this.dragTarget = cell;
+                    this.lastMousePos = mousePos;
+                    cell.isDragging = true;
+                    this.canvas.classList.add('dragging');
+                    
+                    // Activate cell on drag start
+                    this.activateCell(cell.id);
+                    
+                    document.getElementById('dragging-status').textContent = `Dragging: ${{cell.name}}`;
+                }}
+            }}
+            
+            handleMouseMove(e) {{
+                const mousePos = this.getMousePos(e);
+                
+                if (this.isDragging && this.dragTarget) {{
+                    const dx = mousePos.x - this.lastMousePos.x;
+                    const dy = mousePos.y - this.lastMousePos.y;
+                    
+                    this.dragTarget.x += dx;
+                    this.dragTarget.y += dy;
+                    
+                    // Keep cell within bounds
+                    const margin = this.dragTarget.radius;
+                    this.dragTarget.x = Math.max(margin, Math.min(this.canvas.width/2 - margin, this.dragTarget.x));
+                    this.dragTarget.y = Math.max(margin, Math.min(this.canvas.height/2 - margin, this.dragTarget.y));
+                    
+                    this.lastMousePos = mousePos;
+                }} else {{
+                    // Show hover effect
+                    const cell = this.findCellAt(mousePos.x, mousePos.y);
+                    this.canvas.style.cursor = cell ? 'pointer' : 'default';
+                }}
+            }}
+            
+            handleMouseUp(e) {{
+                if (this.isDragging) {{
+                    this.isDragging = false;
+                    if (this.dragTarget) {{
+                        this.dragTarget.isDragging = false;
+                        this.dragTarget = null;
+                    }}
+                    this.canvas.classList.remove('dragging');
+                    document.getElementById('dragging-status').textContent = 'Drag Status: Ready';
+                }}
+            }}
+            
+            handleTouchStart(e) {{
+                e.preventDefault();
+                const touch = e.touches[0];
+                this.handleMouseDown({{
+                    clientX: touch.clientX,
+                    clientY: touch.clientY
+                }});
+            }}
+            
+            handleTouchMove(e) {{
+                e.preventDefault();
+                const touch = e.touches[0];
+                this.handleMouseMove({{
+                    clientX: touch.clientX,
+                    clientY: touch.clientY
+                }});
+            }}
+            
+            handleTouchEnd(e) {{
+                e.preventDefault();
+                this.handleMouseUp(e);
+            }}
+            
+            drawCell(cell) {{
+                const {{ x, y, radius, gradient, activity, pulse, organelles, type, isDragging }} = cell;
+                
+                // Enhanced glow effect when dragging
+                const glowRadius = radius + 15 + Math.sin(pulse) * 4 + (isDragging ? 10 : 0);
+                const glowIntensity = isDragging ? '60' : '40';
+                const glowGradient = this.ctx.createRadialGradient(x, y, radius * 0.8, x, y, glowRadius);
+                glowGradient.addColorStop(0, `${{gradient[0]}}${{glowIntensity}}`);
+                glowGradient.addColorStop(1, 'transparent');
+                
+                this.ctx.fillStyle = glowGradient;
+                this.ctx.fillRect(x - glowRadius, y - glowRadius, glowRadius * 2, glowRadius * 2);
+                
+                // Main cell body with enhanced visual for dragging
+                const cellGradient = this.ctx.createRadialGradient(x - radius * 0.3, y - radius * 0.3, 0, x, y, radius);
+                const opacity = isDragging ? 'FF' : 'CC';
+                cellGradient.addColorStop(0, gradient[0] + opacity);
+                cellGradient.addColorStop(0.7, gradient[1] + (isDragging ? 'DD' : 'AA'));
+                cellGradient.addColorStop(1, gradient[1] + (isDragging ? '99' : '66'));
+                
+                this.ctx.fillStyle = cellGradient;
+                this.ctx.beginPath();
+                this.ctx.arc(x, y, radius + (isDragging ? 3 : 0), 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // Enhanced border for different dependency types
+                let borderWidth;
+                switch(type) {{
+                    case 'direct': borderWidth = 4; break;
+                    case 'indirect': borderWidth = 2; break;
+                    case 'transitive': borderWidth = 1; break;
+                    default: borderWidth = 1;
+                }}
+                
+                this.ctx.strokeStyle = gradient[0] + (isDragging ? 'FF' : type === 'direct' ? 'FF' : 'AA');
+                this.ctx.lineWidth = borderWidth + (isDragging ? 1 : 0);
+                this.ctx.stroke();
+                
+                // Animated organelles
+                organelles.forEach(org => {{
+                    if (this.animationEnabled) {{
+                        org.angle += org.speed * 0.015 * this.animationSpeed;
+                    }}
+                    const orgX = x + Math.cos(org.angle) * (radius * 0.5) + org.x * 0.4;
+                    const orgY = y + Math.sin(org.angle) * (radius * 0.5) + org.y * 0.4;
+                    
+                    this.ctx.fillStyle = org.color + (isDragging ? 'BB' : '88');
+                    this.ctx.beginPath();
+                    this.ctx.arc(orgX, orgY, org.radius, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    
+                    // Inner organelle structure
+                    this.ctx.fillStyle = org.color + (isDragging ? 'DD' : 'BB');
+                    this.ctx.beginPath();
+                    this.ctx.arc(orgX - 1, orgY - 1, org.radius * 0.6, 0, Math.PI * 2);
+                    this.ctx.fill();
+                }});
+                
+                // Enhanced nucleus
+                const nucleusGradient = this.ctx.createRadialGradient(x, y, 0, x, y, 15);
+                nucleusGradient.addColorStop(0, isDragging ? '#ffffff' : '#ffffff88');
+                nucleusGradient.addColorStop(0.5, gradient[0] + (isDragging ? '88' : '66'));
+                nucleusGradient.addColorStop(1, gradient[1] + (isDragging ? '66' : '44'));
+                
+                this.ctx.fillStyle = nucleusGradient;
+                this.ctx.beginPath();
+                this.ctx.arc(x, y, 15, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // Activity indicator
+                if (activity > 0 || isDragging) {{
+                    const activityRadius = radius + 20 + (activity * 15) + (isDragging ? 8 : 0);
+                    this.ctx.strokeStyle = gradient[0] + Math.floor((activity * 255) + (isDragging ? 100 : 0)).toString(16).padStart(2, '0');
+                    this.ctx.lineWidth = isDragging ? 3 : 2;
+                    this.ctx.beginPath();
+                    this.ctx.arc(x, y, activityRadius, 0, Math.PI * 2);
+                    this.ctx.stroke();
+                }}
+                
+                // Enhanced labels for larger cells or when dragging
+                if (radius > 18 || isDragging) {{
+                    this.ctx.fillStyle = isDragging ? '#ffffff' : '#ffffff';
+                    this.ctx.font = `bold ${{isDragging ? '12px' : '10px'}} Arial`;
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText(cell.name, x, y + radius + (isDragging ? 20 : 15));
+                    
+                    // Type and version indicators
+                    this.ctx.fillStyle = type === 'direct' ? '#00ff00' : type === 'indirect' ? '#ffff00' : '#ff8800';
+                    this.ctx.font = `${{isDragging ? '9px' : '8px'}} Arial`;
+                    this.ctx.fillText(`${{type.toUpperCase()}}`, x, y + radius + (isDragging ? 35 : 28));
+                    
+                    if (isDragging && cell.version) {{
+                        this.ctx.fillStyle = '#cccccc';
+                        this.ctx.font = '7px Arial';
+                        this.ctx.fillText(cell.version, x, y + radius + 48);
+                    }}
+                }}
+            }}
+            
+            addCommunication(fromId, toId, type = 'dependency') {{
+                const fromCell = this.cells.find(cell => cell.id === fromId);
+                const toCell = this.cells.find(cell => cell.id === toId);
+                
+                if (!fromCell || !toCell) return;
+                
+                const communication = {{
+                    id: Date.now() + Math.random(),
+                    fromCell,
+                    toCell,
+                    type,
+                    progress: 0,
+                    speed: 0.008 + Math.random() * 0.006,
+                    particles: Array(3).fill().map((_, i) => ({{ 
+                        id: i,
+                        offset: i * 0.2
+                    }})),
+                    intensity: 1.0,
+                    color: type === 'activation' ? '#ff6b6b' : type === 'import' ? '#00d4aa' : '#ffc107'
+                }};
+                
+                this.communications.push(communication);
+                fromCell.activity = Math.min(1, fromCell.activity + 0.4);
+                toCell.activity = Math.min(1, toCell.activity + 0.3);
+                
+                setTimeout(() => {{
+                    this.communications = this.communications.filter(c => c.id !== communication.id);
+                }}, 5000);
+            }}
+            
+            drawCommunication(comm) {{
+                if (!this.showCommunications) return;
+                
+                const {{ fromCell, toCell, progress, particles, color, intensity }} = comm;
+                const dx = toCell.x - fromCell.x;
+                const dy = toCell.y - fromCell.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                // Enhanced connection line with gradient
+                const lineGradient = this.ctx.createLinearGradient(fromCell.x, fromCell.y, toCell.x, toCell.y);
+                lineGradient.addColorStop(0, `${{color}}${{Math.floor(intensity * 80).toString(16).padStart(2, '0')}}`);
+                lineGradient.addColorStop(0.5, `${{color}}${{Math.floor(intensity * 120).toString(16).padStart(2, '0')}}`);
+                lineGradient.addColorStop(1, `${{color}}${{Math.floor(intensity * 80).toString(16).padStart(2, '0')}}`);
+                
+                this.ctx.strokeStyle = lineGradient;
+                this.ctx.lineWidth = 2 + Math.sin(progress * Math.PI) * 1;
+                this.ctx.setLineDash([8, 4]);
+                this.ctx.beginPath();
+                this.ctx.moveTo(fromCell.x, fromCell.y);
+                this.ctx.lineTo(toCell.x, toCell.y);
+                this.ctx.stroke();
+                this.ctx.setLineDash([]);
+                
+                // Enhanced signal particles with trails
+                particles.forEach((particle, index) => {{
+                    const particleProgress = (progress + particle.offset) % 1;
+                    const particleX = fromCell.x + dx * particleProgress;
+                    const particleY = fromCell.y + dy * particleProgress;
+                    
+                    // Particle trail
+                    for (let i = 0; i < 6; i++) {{
+                        const trailProgress = Math.max(0, particleProgress - i * 0.08);
+                        const trailX = fromCell.x + dx * trailProgress;
+                        const trailY = fromCell.y + dy * trailProgress;
+                        const alpha = Math.max(0, (6 - i) / 6 * 0.8);
+                        
+                        this.ctx.fillStyle = `${{color}}${{Math.floor(alpha * 255).toString(16).padStart(2, '0')}}`;
+                        this.ctx.beginPath();
+                        this.ctx.arc(trailX, trailY, 4 - i * 0.5, 0, Math.PI * 2);
+                        this.ctx.fill();
+                    }}
+                    
+                    // Main particle with enhanced effects
+                    const particleGradient = this.ctx.createRadialGradient(particleX, particleY, 0, particleX, particleY, 12);
+                    particleGradient.addColorStop(0, color);
+                    particleGradient.addColorStop(0.5, `${{color}}CC`);
+                    particleGradient.addColorStop(1, 'transparent');
+                    
+                    this.ctx.fillStyle = particleGradient;
+                    this.ctx.beginPath();
+                    this.ctx.arc(particleX, particleY, 12, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    
+                    // Particle core
+                    this.ctx.fillStyle = '#ffffff';
+                    this.ctx.beginPath();
+                    this.ctx.arc(particleX, particleY, 3, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    
+                    // Data visualization on particle
+                    if (particleProgress > 0.1 && particleProgress < 0.9) {{
+                        this.ctx.fillStyle = '#ffffff';
+                        this.ctx.font = '8px Arial';
+                        this.ctx.textAlign = 'center';
+                        this.ctx.fillText(comm.type.toUpperCase(), particleX, particleY - 15);
+                    }}
+                }});
+            }}
+            
+            setupControls() {{
+                const controlsContainer = document.getElementById('dependency-controls');
+                
+                // Group dependencies by category
+                const categories = {{}};
+                this.cells.forEach(cell => {{
+                    if (!categories[cell.category]) {{
+                        categories[cell.category] = [];
+                    }}
+                    categories[cell.category].push(cell);
+                }});
+                
+                Object.entries(categories).forEach(([category, cells]) => {{
+                    const categoryDiv = document.createElement('div');
+                    categoryDiv.innerHTML = `<strong>${{category.charAt(0).toUpperCase() + category.slice(1)}} (${{cells.length}})</strong>`;
+                    categoryDiv.style.marginBottom = '8px';
+                    categoryDiv.style.color = vizData.color_schemes[category] ? vizData.color_schemes[category][0] : '#ffffff';
+                    controlsContainer.appendChild(categoryDiv);
+                    
+                    cells.slice(0, 6).forEach(cell => {{
+                        const button = document.createElement('button');
+                        button.className = 'dependency-button';
+                        button.textContent = `${{cell.name}} (${{cell.type}})`;
+                        button.title = `${{cell.fullName}} - ${{cell.version}}`;
+                        button.onclick = () => this.activateCell(cell.id);
+                        controlsContainer.appendChild(button);
+                    }});
+                    
+                    if (cells.length > 6) {{
+                        const moreDiv = document.createElement('div');
+                        moreDiv.style.fontSize = '0.7rem';
+                        moreDiv.style.opacity = '0.7';
+                        moreDiv.style.marginBottom = '15px';
+                        moreDiv.style.fontStyle = 'italic';
+                        moreDiv.textContent = `... and ${{cells.length - 6}} more dependencies`;
+                        controlsContainer.appendChild(moreDiv);
+                    }}
+                }});
+            }}
+            
+            setupLegend() {{
+                const legendContainer = document.getElementById('legend-items');
+                
+                Object.entries(vizData.categories).forEach(([category, deps]) => {{
+                    if (deps.length > 0) {{
+                        const item = document.createElement('div');
+                        item.className = 'legend-item';
+                        
+                        const color = document.createElement('div');
+                        color.className = 'legend-color';
+                        const colors = vizData.color_schemes[category] || vizData.color_schemes.external;
+                        color.style.background = `linear-gradient(45deg, ${{colors[0]}}, ${{colors[1]}})`;
+                        
+                        const label = document.createElement('span');
+                        label.textContent = `${{category}} (${{deps.length}})`;
+                        
+                        item.appendChild(color);
+                        item.appendChild(label);
+                        legendContainer.appendChild(item);
+                    }}
+                }});
+            }}
+            
+            activateCell(cellId) {{
+                const cell = this.cells.find(c => c.id === cellId);
+                if (cell) {{
+                    cell.activity = 1;
+                    cell.pulse = Math.PI;
+                    
+                    // Create ripple effect
+                    this.createRipple(cell.x, cell.y, cell.color);
+                    
+                    // Create communications to related dependencies
+                    const relationships = vizData.relationships.filter(
+                        rel => rel.source === cellId || rel.target === cellId
+                    );
+                    
+                    relationships.slice(0, 4).forEach((rel, index) => {{
+                        const targetId = rel.source === cellId ? rel.target : rel.source;
+                        setTimeout(() => {{
+                            this.addCommunication(cellId, targetId, 'activation');
+                        }}, index * 300);
+                    }});
+                }}
+            }}
+            
+            createRipple(x, y, color) {{
+                const ripple = {{
+                    x, y, color,
+                    radius: 0,
+                    maxRadius: 150,
+                    opacity: 1,
+                    growing: true
+                }};
+                
+                const animateRipple = () => {{
+                    if (ripple.growing) {{
+                        ripple.radius += 4;
+                        ripple.opacity -= 0.025;
+                        
+                        if (ripple.radius >= ripple.maxRadius || ripple.opacity <= 0) {{
+                            return;
+                        }}
+                        
+                        // Draw ripple
+                        this.ctx.strokeStyle = `${{ripple.color}}${{Math.floor(ripple.opacity * 255).toString(16).padStart(2, '0')}}`;
+                        this.ctx.lineWidth = 3;
+                        this.ctx.beginPath();
+                        this.ctx.arc(ripple.x, ripple.y, ripple.radius, 0, Math.PI * 2);
+                        this.ctx.stroke();
+                        
+                        requestAnimationFrame(animateRipple);
+                    }}
+                }};
+                
+                animateRipple();
+            }}
+            
+            createFloatingParticles() {{
+                const particlesContainer = document.getElementById('particles');
+                
+                setInterval(() => {{
+                    if (!this.animationEnabled) return;
+                    
+                    const particle = document.createElement('div');
+                    particle.className = 'particle';
+                    particle.style.left = Math.random() * 100 + '%';
+                    particle.style.animationDuration = (12 + Math.random() * 8) + 's';
+                    particle.style.animationDelay = Math.random() * 3 + 's';
+                    particle.style.opacity = 0.3 + Math.random() * 0.4;
+                    
+                    particlesContainer.appendChild(particle);
+                    
+                    setTimeout(() => {{
+                        particle.remove();
+                    }}, 20000);
+                }}, 3000);
+            }}
+            
+            startAutoCommunications() {{
+                setInterval(() => {{
+                    if (Math.random() < 0.25 && this.cells.length >= 2 && this.showCommunications) {{
+                        const relationships = vizData.relationships;
+                        if (relationships.length > 0) {{
+                            const rel = relationships[Math.floor(Math.random() * relationships.length)];
+                            this.addCommunication(rel.source, rel.target, 'auto');
+                        }}
+                    }}
+                }}, 2500);
+            }}
+            
+            animate() {{
+                // Clear canvas with enhanced cosmic background
+                const gradient = this.ctx.createLinearGradient(0, 0, this.canvas.width / 2, this.canvas.height / 2);
+                gradient.addColorStop(0, '#0a0a0a');
+                gradient.addColorStop(0.3, '#1a1a2e');
+                gradient.addColorStop(0.7, '#16213e');
+                gradient.addColorStop(1, '#0f1419');
+                
+                this.ctx.fillStyle = gradient;
+                this.ctx.fillRect(0, 0, this.canvas.width / 2, this.canvas.height / 2);
+                
+                // Add subtle cosmic dust effect
+                for (let i = 0; i < 50; i++) {{
+                    this.ctx.fillStyle = `rgba(255, 255, 255, ${{Math.random() * 0.1}})`;
+                    this.ctx.beginPath();
+                    this.ctx.arc(
+                        Math.random() * this.canvas.width / 2,
+                        Math.random() * this.canvas.height / 2,
+                        Math.random() * 1,
+                        0, Math.PI * 2
+                    );
+                    this.ctx.fill();
+                }}
+                
+                // Update and draw cells
+                this.cells.forEach(cell => {{
+                    if (this.animationEnabled) {{
+                        cell.pulse += 0.04 * this.animationSpeed;
+                        cell.activity = Math.max(0, cell.activity - 0.012);
+                        cell.radius = cell.baseRadius + Math.sin(cell.pulse) * 3;
+                    }}
+                    this.drawCell(cell);
+                }});
+                
+                // Update and draw communications
+                this.communications.forEach(comm => {{
+                    if (this.animationEnabled) {{
+                        comm.progress += comm.speed * this.animationSpeed;
+                        if (comm.progress >= 1) {{
+                            comm.progress = 0;
+                            comm.toCell.activity = Math.min(1, comm.toCell.activity + 0.3);
+                        }}
+                    }}
+                    this.drawCommunication(comm);
+                }});
+                
+                // Update stats
+                document.getElementById('active-communications').textContent = 
+                    `Active Communications: ${{this.communications.length}}`;
+                
+                requestAnimationFrame(() => this.animate());
+            }}
+        }}
+        
+        // Global control functions
+        function toggleCommunications() {{
+            visualizer.showCommunications = !visualizer.showCommunications;
+            if (!visualizer.showCommunications) {{
+                visualizer.communications = [];
+            }}
+        }}
+        
+        function resetPositions() {{
+            visualizer.cells.forEach(cell => {{
+                cell.x = cell.originalX;
+                cell.y = cell.originalY;
+                cell.isDragging = false;
+            }});
+            visualizer.isDragging = false;
+            visualizer.dragTarget = null;
+            document.getElementById('dragging-status').textContent = 'Positions Reset';
+        }}
+        
+        function toggleAnimation() {{
+            visualizer.animationEnabled = !visualizer.animationEnabled;
+        }}
+        
+        // Initialize visualizer when page loads
+        let visualizer;
+        window.addEventListener('load', () => {{
+            console.log('🧬 Initializing Cellular Dependency Visualizer...');
+            console.log('📊 Dependencies:', Object.keys(vizData.dependencies).length);
+            console.log('🔗 Relationships:', vizData.relationships.length);
+            visualizer = new CellularDependencyVisualizer();
+        }});
+    </script>
+</body>
+</html>'''
+
+        return html_content
+    
+    def save_results(self, viz_data: Dict, html_content: str):
+        """Save all results to output directory"""
+        print(f"💾 Saving results to {{self.output_dir}}")
+        
+        # Create output directory
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Save visualization data
+        with open(self.output_dir / "visualization_data.json", 'w') as f:
+            json.dump(viz_data, f, indent=2)
+        
+        # Save HTML visualization
+        with open(self.output_dir / "cellular_dependencies.html", 'w') as f:
+            f.write(html_content)
+        
+        # Save analysis report
+        self._generate_analysis_report(viz_data)
+        
+        print(f"✅ Results saved successfully")
+        
+    def _generate_analysis_report(self, viz_data: Dict):
+        """Generate comprehensive analysis report"""
+        report_content = f"""# 🧬 Go Cellular Dependency Analysis Report
+
+## Repository Information
+- **Repository**: {{viz_data['repo_url']}}
+- **Module**: {{viz_data['module_name']}}
+- **Go Version**: {{viz_data['go_version']}}
+- **Analysis Date**: {{viz_data['analysis_timestamp']}}
+
+## Dependency Statistics
+- **Total Dependencies**: {{viz_data['stats']['total_dependencies']}}
+- **Direct Dependencies**: {{viz_data['stats']['direct_dependencies']}}
+- **Indirect Dependencies**: {{viz_data['stats']['indirect_dependencies']}}
+- **Transitive Dependencies**: {{viz_data['stats']['transitive_dependencies']}}
+- **Total Relationships**: {{viz_data['stats']['total_relationships']}}
+
+## Dependencies by Category
+"""
+        
+        for category, deps in viz_data['categories'].items():
+            if deps:
+                report_content += f"### {{category.title()}} ({{len(deps)}} dependencies)\n"
+                for dep in deps[:5]:  # Show first 5
+                    report_content += f"- **{{dep['name']}}** `{{dep['version']}}` ({{dep['type']}})\n"
+                if len(deps) > 5:
+                    report_content += f"- ... and {{len(deps) - 5}} more\n"
+                report_content += "\n"
+        
+        report_content += f"""
+## Interactive Features
+- **Draggable Cells**: All dependency cells can be dragged around
+- **Live Communication**: Real-time particle communication between dependencies
+- **Category Color Coding**: Each dependency category has unique colors
+- **Activation System**: Click any dependency to see its connections
+- **Mobile Support**: Touch-enabled for mobile devices
+
+## Files Generated
+- `cellular_dependencies.html` - Interactive visualization
+- `visualization_data.json` - Complete dependency data
+- `analysis_report.md` - This report
+
+## Usage
+1. Open `cellular_dependencies.html` in a web browser
+2. Drag cells around to reorganize the layout
+3. Click on dependencies to activate their connections
+4. Watch live communication between cells
+5. Use the legend to understand color coding
+
+---
+Generated by Go Cellular Dependency Analyzer
+"""
+        
+        with open(self.output_dir / "analysis_report.md", 'w') as f:
+            f.write(report_content)
+    
+    def cleanup(self):
+        """Clean up temporary files"""
+        if self.temp_dir and Path(self.temp_dir).exists():
+            shutil.rmtree(self.temp_dir)
+            print(f"🧹 Cleaned up temporary files")
+    
+    def analyze(self) -> bool:
+        """Run the complete analysis pipeline"""
+        try:
+            print(f"🚀 Starting analysis of {{self.repo_url}}")
+            
+            # Step 1: Clone repository
+            if not self.clone_repository():
+                return False
+            
+            # Step 2: Analyze Go module
+            if not self.analyze_go_module():
+                return False
+            
+            # Step 3: Extract dependencies
+            if not self.extract_dependencies():
+                return False
+            
+            # Step 4: Create visualization data
+            viz_data = self.create_visualization_data()
+            
+            # Step 5: Generate HTML visualization
+            html_content = self.generate_html_visualization(viz_data)
+            
+            # Step 6: Save results
+            self.save_results(viz_data, html_content)
+            
+            print(f"🎉 Analysis completed successfully!")
+            print(f"📁 Results saved to: {{self.output_dir}}")
+            print(f"🌐 Open: {{self.output_dir}}/cellular_dependencies.html")
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ Analysis failed: {{e}}")
+            return False
+        finally:
+            self.cleanup()
+

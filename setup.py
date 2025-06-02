@@ -13,7 +13,7 @@ with open(os.path.join(this_directory, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name="enhanced-dcgan-research",
-    version="0.1.1",
+    version="0.1.2",
     author="Jahidul Arafat",  # Replace with your name
     author_email="jahidapon@gmail.com",  # Replace with your email
     description="Enhanced DCGAN Research Framework with Academic Reporting and Advanced Checkpointing",
@@ -56,7 +56,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "enhanced-dcgan=enhanced_dcgan_research.fully_integrated_report_v04:main",
+            "enhanced-dcgan=enhanced_dcgan_research.cli:main",
         ],
     },
     include_package_data=True,
