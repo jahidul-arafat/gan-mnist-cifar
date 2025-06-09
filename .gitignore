@@ -65,3 +65,16 @@ data_source/
 # Cache files
 .cache/
 *.cache
+
+# Ignore all .env files
+*.env
+.env.*
+
+# Ignore node_modules anywhere
+**/node_modules/
+
+# Ignore all package-lock.json files
+**/package-lock.json
+
+# Ignore specific file
+backup/requirements.txt

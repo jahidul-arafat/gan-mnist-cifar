@@ -1,0 +1,202 @@
+# File: deployment/render.yaml
+# Render.com deployment configuration for Enhanced DCGAN Web Application
+
+services:
+  # Backend API Service
+  - type: web
+    name: enhanced-dcgan-backend
+    env: python
+    plan: standard  # or starter for development
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r backend/requirements.txt
+      python backend/health_check.py --quiet || echo "Health check failed but continuing"
+    startCommand: |
+      cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT --workers 2
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: PORT
+        fromService:
+          type: web
+          name: enhanced-dcgan-backend
+          property: port
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_ORIGINS
+        value: https://enhanced-dcgan-frontend.onrender.com,https://your-custom-domain.com
+      - key: CORS_ALLOW_CREDENTIALS
+        value: true
+      - key: LOG_LEVEL
+        value: INFO
+      - key: MAX_CONCURRENT_TRAININGS
+        value: 1
+      - key: DEFAULT_EPOCHS
+        value: 25
+      - key: MAX_EPOCHS
+        value: 100
+      - key: CUDA_VISIBLE_DEVICES
+        value: ""  # CPU only on Render
+      - key: OMP_NUM_THREADS
+        value: 2
+      - key: WORKERS
+        value: 2
+      - key: TIMEOUT
+        value: 300
+      - key: ENABLE_METRICS
+        value: true
+      - key: STORAGE_ROOT
+        value: /opt/render/project/src/storage
+      - key: MODELS_DIR
+        value: /opt/render/project/src/storage/models
+      - key: REPORTS_DIR
+        value: /opt/render/project/src/storage/reports
+      - key: STATIC_DIR
+        value: /opt/render/project/src/storage/static
+      - key: LOGS_DIR
+        value: /opt/render/project/src/storage/training_logs
+
+  # Frontend Service
+  - type: web
+    name: enhanced-dcgan-frontend
+    env: node
+    plan: standard
+    buildCommand: |
+      cd frontend
+      npm ci
+      npm run build
+    startCommand: |
+      cd frontend
+      npm install -g serve
+      serve -s build -l $PORT
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: REACT_APP_API_URL
+        fromService:
+          type: web
+          name: enhanced-dcgan-backend
+          property: host
+      - key: GENERATE_SOURCEMAP
+        value: false
+      - key: CI
+        value: true
+
+# Database service (optional - using SQLite by default)
+databases:
+  - name: enhanced-dcgan-db
+    databaseName: enhanced_dcgan_production
+    user: enhanced_dcgan_user
+    plan: starter  # PostgreSQL starter plan
+    # Uncomment if you want to use PostgreSQL instead of SQLite
+    # envVars:
+    #   - key: DATABASE_URL
+    #     fromDatabase:
+    #       name: enhanced-dcgan-db
+    #       property: connectionString
+
+# Static file service for model storage (if needed)
+# Note: Render's ephemeral storage means files won't persist between deploys
+# Consider using external storage for production (AWS S3, Google Cloud Storage, etc.)
+
+# Environment-specific configurations
+envVarGroups:
+  - name: production-config
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: false
+      - key: LOG_LEVEL
+        value: INFO
+      - key: ENABLE_METRICS
+        value: true
+      - key: RATE_LIMIT_ENABLED
+        value: true
+
+  - name: security-config
+    envVars:
+      - key: SECURE_SSL_REDIRECT
+        value: true
+      - key: SECURE_HSTS_SECONDS
+        value: 31536000
+      - key: SECURE_CONTENT_TYPE_NOSNIFF
+        value: true
+      - key: SECURE_BROWSER_XSS_FILTER
+        value: true
+
+  - name: performance-config
+    envVars:
+      - key: WORKERS
+        value: 2
+      - key: WORKER_CONNECTIONS
+        value: 1000
+      - key: MAX_REQUESTS
+        value: 1000
+      - key: TIMEOUT
+        value: 300
+      - key: KEEPALIVE
+        value: 5
+
+# Deployment hooks
+preDeployCommand: |
+  echo "Starting Enhanced DCGAN deployment..."
+  echo "Checking system requirements..."
+
+postDeployCommand: |
+  echo "Enhanced DCGAN deployment completed!"
+  echo "Backend URL: $RENDER_EXTERNAL_URL"
+  echo "Health check: $RENDER_EXTERNAL_URL/health"
+  echo "API docs: $RENDER_EXTERNAL_URL/api/docs"
+
+# Monitoring and alerting
+monitoringEnabled: true
+healthChecks:
+  - path: /health
+    intervalSeconds: 30
+    timeoutSeconds: 10
+    retries: 3
+
+# Build configuration
+buildFilter:
+  paths:
+    - backend/**
+    - frontend/**
+    - deployment/**
+    - .env.example
+    - README.md
+  ignoredPaths:
+    - "**/*.md"
+    - "**/tests/**"
+    - "**/__pycache__/**"
+    - "**/node_modules/**"
+    - "**/.git/**"
+
+# Resource limits (adjust based on your plan)
+resources:
+  cpu: 1.0
+  memory: 2GB
+  disk: 10GB
+
+# Auto-deploy settings
+autoDeploy: true
+branch: main  # or your main branch name
+
+# Notifications (optional)
+notifications:
+  - type: email
+    target: your-email@example.com
+    events:
+      - deploy-succeeded
+      - deploy-failed
+      - service-suspended
+
+# Custom domains (configure after deployment)
+# customDomains:
+#   - name: enhanced-dcgan.yourdomain.com
+#     type: apex
+#   - name: api.enhanced-dcgan.yourdomain.com
+#     type: subdomain

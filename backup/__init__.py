@@ -49,6 +49,13 @@ try:
         EnhancedLivePlotter,
     )
 
+    # Import composite metrics logger
+    from .composite_enhanced_metrics_logger import (
+        CompositeEnhancedMetricsLogger,
+        create_composite_metrics_logger,
+        analyze_composite_training_metrics,
+    )
+
     from .fully_integrated_report_v04 import (
         # Academic reporting
         FixedFullyIntegratedAcademicReporter,
@@ -106,6 +113,31 @@ def create_academic_report(dataset_key, experiment_id=None):
         experiment_id=experiment_id
     )
 
+def create_metrics_logger(dataset_key, device_info, training_config, experiment_name=None, resume_from_epoch=None):
+    """
+    Convenience function for creating a composite metrics logger.
+
+    Args:
+        dataset_key (str): Dataset being used
+        device_info (dict): System and device information
+        training_config (dict): Training configuration parameters
+        experiment_name (str, optional): Custom experiment name
+        resume_from_epoch (int, optional): Epoch number we're resuming from
+
+    Returns:
+        CompositeEnhancedMetricsLogger: Configured metrics logger instance
+    """
+    if not _imports_successful:
+        raise ImportError("Required modules not available")
+
+    return create_composite_metrics_logger(
+        dataset_key=dataset_key,
+        device_info=device_info,
+        training_config=training_config,
+        experiment_name=experiment_name,
+        resume_from_epoch=resume_from_epoch
+    )
+
 # Package info
 def get_info():
     """Get package information."""
@@ -130,6 +162,7 @@ __all__ = [
     '__version__',
     'train_enhanced_gan',
     'create_academic_report',
+    'create_metrics_logger',
     'get_info',
 ]
 
@@ -141,6 +174,9 @@ if _imports_successful:
         'WassersteinGPLoss',
         'FixedFullyIntegratedAcademicReporter',
         'InteractiveDigitGenerator',
+        'CompositeEnhancedMetricsLogger',
+        'create_composite_metrics_logger',
+        'analyze_composite_training_metrics',
         'DATASETS',
         'device',
         'device_name',

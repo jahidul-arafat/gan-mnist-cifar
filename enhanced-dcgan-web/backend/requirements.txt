@@ -1,0 +1,30 @@
+# Enhanced DCGAN Web Backend - Minimal Dependencies
+# File: backend/requirements-minimal.txt
+# Use this for development/testing without full ML stack
+
+# FastAPI and Web Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+websockets==12.0
+
+# Pydantic for data validation
+pydantic>=2.4.0
+pydantic-settings>=2.0.0
+
+# Environment and Configuration
+python-dotenv>=1.0.0
+
+# Basic utilities
+pathlib2>=2.3.7
+
+# Development dependencies
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+
+# Optional: Add these if you want to test ML functionality
+torch>=2.0.0
+torchvision>=0.15.0
+numpy>=1.24.0
+matplotlib>=3.7.0
+Pillow>=10.0.0

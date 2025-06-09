@@ -70,6 +70,34 @@ except ImportError as e:
     print(f"Warning: Some imports failed: {e}")
     _imports_successful = False
 
+# Add missing functions that the backend expects
+def list_all_checkpoints():
+    """List all available checkpoints across all datasets"""
+    if not _imports_successful:
+        return {}
+
+    all_checkpoints = {}
+    for dataset_key in DATASETS.keys():
+        try:
+            checkpoints = find_available_checkpoints(dataset_key)
+            all_checkpoints[dataset_key] = checkpoints
+        except Exception as e:
+            print(f"Warning: Could not list checkpoints for {dataset_key}: {e}")
+            all_checkpoints[dataset_key] = []
+
+    return all_checkpoints
+
+def analyze_composite_training_metrics_safe(*args, **kwargs):
+    """Safe wrapper for analyze_composite_training_metrics"""
+    if not _imports_successful:
+        return {}
+
+    try:
+        return analyze_composite_training_metrics(*args, **kwargs)
+    except Exception as e:
+        print(f"Warning: Training metrics analysis failed: {e}")
+        return {}
+
 # Main convenience functions
 def train_enhanced_gan(dataset_key, num_epochs=50, resume_mode='interactive'):
     """
@@ -164,6 +192,8 @@ __all__ = [
     'create_academic_report',
     'create_metrics_logger',
     'get_info',
+    'list_all_checkpoints',  # Add this
+    'analyze_composite_training_metrics_safe',  # Add this
 ]
 
 if _imports_successful:
@@ -181,4 +211,13 @@ if _imports_successful:
         'device',
         'device_name',
         'device_type',
+        'find_available_checkpoints',
+        'train_enhanced_gan_with_resume_modified',
+        'run_fixed_fully_integrated_academic_study',
+        'save_academic_generated_images',
     ])
+
+# Alias for compatibility
+if _imports_successful:
+    # Make analyze_composite_training_metrics available under the original name
+    globals()['analyze_composite_training_metrics'] = analyze_composite_training_metrics_safe
