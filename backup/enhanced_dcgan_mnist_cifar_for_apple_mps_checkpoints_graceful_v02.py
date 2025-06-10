@@ -625,36 +625,7 @@ def display_checkpoint_options(dataset_key):
     return options
 
 def get_checkpoint_choice(dataset_key):
-    """Get user's choice of checkpoint to resume from - Enhanced with auto-selection for web mode"""
-
-    # 🆕 CHECK FOR WEB MODE - ADD THIS AT THE BEGINNING OF THE FUNCTION
-    web_mode = os.getenv('DCGAN_WEB_MODE') == '1'
-    auto_resume = os.getenv('DCGAN_AUTO_RESUME') == '1'
-
-    if web_mode:
-        print(f"🤖 WEB MODE DETECTED - Auto-selecting checkpoint...")
-        options = display_checkpoint_options(dataset_key)
-
-        if not options:
-            print(f"❌ No checkpoints found for {dataset_key}")
-            return None, None
-
-        # Auto-select the first checkpoint (option 1)
-        checkpoint_path, checkpoint_data = options[0]
-        filename = os.path.basename(checkpoint_path)
-        print(f"✅ AUTO-SELECTED: Option 1 - {filename}")
-
-        if checkpoint_data:
-            epoch = checkpoint_data.get('epoch', 'Unknown')
-            print(f"   📅 Will resume from epoch: {epoch}")
-            if 'training_stats' in checkpoint_data:
-                stats = checkpoint_data['training_stats']
-                if 'avg_wd' in stats:
-                    print(f"   📈 Last Wasserstein Distance: {stats['avg_wd']:.4f}")
-
-        return checkpoint_path, checkpoint_data
-
-    # ORIGINAL INTERACTIVE CODE CONTINUES HERE FOR NON-WEB MODE
+    """Get user's choice of checkpoint to resume from - Enhanced with clear numbering"""
     options = display_checkpoint_options(dataset_key)
 
     # 🆕 ADD EMERGENCY CHECKPOINT DISPLAY

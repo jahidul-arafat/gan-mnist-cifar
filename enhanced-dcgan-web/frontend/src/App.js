@@ -1,7 +1,7 @@
 // File: frontend/src/App.js
 
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { motion } from 'framer-motion';
 
@@ -33,13 +33,12 @@ import {
 } from 'lucide-react';
 
 function App() {
-    const [activeTab, setActiveTab] = useState('dashboard');
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [darkMode, setDarkMode] = useState(false);
 
     // System status and WebSocket connection
     const { systemStatus, isLoading: systemLoading, error: systemError } = useSystemStatus();
-    const { isConnected } = useWebSocket();
+    const { isConnected } = useWebSocket(false); // Don't auto-connect here, let WebSocketProvider handle it
 
     // Initialize theme
     useEffect(() => {
@@ -114,80 +113,112 @@ function App() {
     }
 
     return (
-        <Router>
-            <div className={`min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200`}>
-                {/* Sidebar */}
-                <Sidebar
+        <WebSocketProvider>
+            <Router>
+                <AppContent
                     navigationItems={navigationItems}
-                    activeTab={activeTab}
-                    setActiveTab={setActiveTab}
                     sidebarOpen={sidebarOpen}
                     setSidebarOpen={setSidebarOpen}
+                    darkMode={darkMode}
+                    setDarkMode={setDarkMode}
                     systemStatus={systemStatus}
                     isConnected={isConnected}
                 />
-
-                {/* Main Content */}
-                <div className={`transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-16'}`}>
-                    {/* Header */}
-                    <Header
-                        darkMode={darkMode}
-                        setDarkMode={setDarkMode}
-                        sidebarOpen={sidebarOpen}
-                        setSidebarOpen={setSidebarOpen}
-                        activeTab={activeTab}
-                        navigationItems={navigationItems}
-                        isConnected={isConnected}
-                        systemStatus={systemStatus}
-                    />
-
-                    {/* Page Content */}
-                    <main className="p-6">
-                        <Routes>
-                            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                            {navigationItems.map(item => {
-                                const Component = item.component;
-                                return (
-                                    <Route
-                                        key={item.id}
-                                        path={`/${item.id}`}
-                                        element={
-                                            <PageWrapper>
-                                                <Component />
-                                            </PageWrapper>
-                                        }
-                                    />
-                                );
-                            })}
-                        </Routes>
-                    </main>
-                </div>
-
-                {/* Toast notifications */}
-                <Toaster
-                    position="top-right"
-                    toastOptions={{
-                        duration: 4000,
-                        style: {
-                            background: darkMode ? '#374151' : '#ffffff',
-                            color: darkMode ? '#f9fafb' : '#111827',
-                            border: darkMode ? '1px solid #4b5563' : '1px solid #e5e7eb'
-                        }
-                    }}
-                />
-
-                {/* Connection Status Indicator */}
-                <ConnectionStatus isConnected={isConnected} />
-            </div>
-        </Router>
+            </Router>
+        </WebSocketProvider>
     );
 }
+
+// Separate component to use hooks that depend on Router context
+const AppContent = ({
+                        navigationItems,
+                        sidebarOpen,
+                        setSidebarOpen,
+                        darkMode,
+                        setDarkMode,
+                        systemStatus,
+                        isConnected
+                    }) => {
+    const location = useLocation();
+    const navigate = useNavigate();
+
+    // Get current route to determine active tab
+    const currentPath = location.pathname.slice(1) || 'dashboard';
+    const activeTab = currentPath;
+
+    return (
+        <div className={`min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200`}>
+            {/* Sidebar */}
+            <Sidebar
+                navigationItems={navigationItems}
+                activeTab={activeTab}
+                navigate={navigate}
+                sidebarOpen={sidebarOpen}
+                setSidebarOpen={setSidebarOpen}
+                systemStatus={systemStatus}
+                isConnected={isConnected}
+            />
+
+            {/* Main Content */}
+            <div className={`transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-16'}`}>
+                {/* Header */}
+                <Header
+                    darkMode={darkMode}
+                    setDarkMode={setDarkMode}
+                    sidebarOpen={sidebarOpen}
+                    setSidebarOpen={setSidebarOpen}
+                    activeTab={activeTab}
+                    navigationItems={navigationItems}
+                    isConnected={isConnected}
+                    systemStatus={systemStatus}
+                />
+
+                {/* Page Content */}
+                <main className="p-6">
+                    <Routes>
+                        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                        {navigationItems.map(item => {
+                            const Component = item.component;
+                            return (
+                                <Route
+                                    key={item.id}
+                                    path={`/${item.id}`}
+                                    element={
+                                        <PageWrapper>
+                                            <Component />
+                                        </PageWrapper>
+                                    }
+                                />
+                            );
+                        })}
+                    </Routes>
+                </main>
+            </div>
+
+            {/* Toast notifications */}
+            <Toaster
+                position="top-right"
+                toastOptions={{
+                    duration: 4000,
+                    style: {
+                        background: darkMode ? '#374151' : '#ffffff',
+                        color: darkMode ? '#f9fafb' : '#111827',
+                        border: darkMode ? '1px solid #4b5563' : '1px solid #e5e7eb'
+                    }
+                }}
+            />
+
+            {/* Connection Status Indicator */}
+            <ConnectionStatus isConnected={isConnected} />
+        </div>
+    );
+};
 
 // Sidebar Component
 const Sidebar = ({
                      navigationItems,
                      activeTab,
-                     setActiveTab,
+                     navigate,
                      sidebarOpen,
                      setSidebarOpen,
                      systemStatus,
@@ -215,7 +246,7 @@ const Sidebar = ({
                                 Enhanced DCGAN
                             </h1>
                             <p className="text-xs text-gray-500 dark:text-gray-400">
-                                v1.0.0
+                                v0.1.2
                             </p>
                         </motion.div>
                     )}
@@ -228,7 +259,7 @@ const Sidebar = ({
                             key={item.id}
                             item={item}
                             isActive={activeTab === item.id}
-                            onClick={() => setActiveTab(item.id)}
+                            onClick={() => navigate(`/${item.id}`)}
                             sidebarOpen={sidebarOpen}
                         />
                     ))}

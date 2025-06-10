@@ -20,11 +20,22 @@ import toast from 'react-hot-toast';
 
 import { useSystemStatus } from '../hooks/useSystemStatus';
 import { useTrainingStatus } from '../hooks/useTrainingStatus';
+import { useWebSocket } from '../hooks/useWebSocket';
 import apiService from '../services/api';
 
 const TrainingInterface = () => {
     const { systemStatus } = useSystemStatus();
-    const { activeTrainings, addTraining, updateTraining } = useTrainingStatus();
+    const {
+        activeTrainings,
+        addTraining,
+        updateTraining,
+        hasActiveTraining,
+        getRunningTrainings,
+        syncWithBackend
+    } = useTrainingStatus();
+
+    // Add WebSocket connection to listen for training updates
+    const { lastMessage, isConnected } = useWebSocket();
 
     const [datasets, setDatasets] = useState({});
     const [checkpoints, setCheckpoints] = useState({});
@@ -36,6 +47,99 @@ const TrainingInterface = () => {
     });
     const [isStarting, setIsStarting] = useState(false);
     const [showAdvanced, setShowAdvanced] = useState(false);
+
+    // Check for active trainings on component mount
+    useEffect(() => {
+        console.log('🔍 TrainingInterface: Checking for active trainings on mount');
+        const runningTrainings = getRunningTrainings();
+        if (runningTrainings.length > 0) {
+            console.log('✅ Found persisted active trainings:', runningTrainings.length);
+
+            // Show notification about resumed training monitoring
+            toast.success(
+                `Resumed monitoring ${runningTrainings.length} active training session${runningTrainings.length > 1 ? 's' : ''}`,
+                {
+                    duration: 6000,
+                    icon: '🔄'
+                }
+            );
+
+            // Sync with backend to verify status
+            syncWithBackend();
+        }
+    }, [getRunningTrainings, syncWithBackend]);
+
+    // Handle WebSocket messages for training progress - Enhanced for backend epoch correction
+    useEffect(() => {
+        if (lastMessage && lastMessage.type === 'training_status') {
+            console.log('🔄 TrainingInterface: Processing training status update:', lastMessage);
+
+            const { training_id, data } = lastMessage;
+
+            if (training_id && data) {
+                // Get existing training to check if it's a resumed session
+                const existingTraining = activeTrainings[training_id];
+
+                // NEW: Handle corrected backend data
+                let actualCurrentEpoch = data.current_epoch || 0;
+                let actualTotalEpochs = data.total_epochs || 50;
+                let actualProgressPercentage = data.progress_percentage || 0;
+
+                // If backend sends resumed training info, use it directly
+                if (data.resumed_from_epoch !== undefined && data.is_resumed) {
+                    console.log('✅ Backend provided resume info:', {
+                        current: data.current_epoch,
+                        resumed_from: data.resumed_from_epoch,
+                        is_resumed: data.is_resumed
+                    });
+
+                    // Use backend's calculated values directly
+                    actualCurrentEpoch = data.current_epoch;
+                    actualProgressPercentage = data.progress_percentage;
+                }
+                // FALLBACK: Legacy inference for older backend versions
+                else if (existingTraining && existingTraining.resumed_from_epoch) {
+                    actualCurrentEpoch = (data.current_epoch || 0) + existingTraining.resumed_from_epoch;
+                    actualProgressPercentage = (actualCurrentEpoch / actualTotalEpochs) * 100;
+                }
+                // If this looks like a resumed session (low epoch but high progress %), try to infer
+                else if (!existingTraining?.resumed_from_epoch &&
+                    data.current_epoch < 10 &&
+                    data.progress_percentage > 50) {
+
+                    const inferredResumedFrom = Math.floor((data.progress_percentage / 100) * actualTotalEpochs) - data.current_epoch;
+                    if (inferredResumedFrom > 0) {
+                        actualCurrentEpoch = data.current_epoch + inferredResumedFrom;
+                        console.log(`🔄 Inferred resumed session: epoch ${data.current_epoch} + ${inferredResumedFrom} = ${actualCurrentEpoch}`);
+                    }
+                }
+
+                // Update training status in the UI
+                updateTraining(training_id, {
+                    current_epoch: actualCurrentEpoch,
+                    total_epochs: actualTotalEpochs,
+                    progress_percentage: actualProgressPercentage,
+                    status: data.status || 'running',
+                    metrics: data.metrics || {},
+                    dataset: data.dataset,
+                    last_update: new Date().toISOString(),
+                    // Store backend resume info if provided
+                    resumed_from_epoch: data.resumed_from_epoch,
+                    is_resumed: data.is_resumed,
+                    // Store original backend values for debugging
+                    backend_current_epoch: data.current_epoch,
+                    backend_progress_percentage: data.progress_percentage,
+                    backend_relative_epoch: data.relative_epoch
+                });
+
+                console.log('✅ TrainingInterface: Updated training progress:', training_id, {
+                    backend: `${data.current_epoch}/${data.total_epochs} (${data.progress_percentage?.toFixed(1)}%)`,
+                    display: `${actualCurrentEpoch}/${actualTotalEpochs} (${actualProgressPercentage.toFixed(1)}%)`,
+                    resumed_info: data.is_resumed ? `resumed from ${data.resumed_from_epoch}` : 'fresh training'
+                });
+            }
+        }
+    }, [lastMessage, updateTraining, activeTrainings]);
 
     useEffect(() => {
         loadTrainingData();
@@ -63,12 +167,28 @@ const TrainingInterface = () => {
     const loadCheckpoints = async (dataset) => {
         try {
             const checkpointsData = await apiService.getCheckpoints(dataset);
+            console.log('Raw checkpoints response:', checkpointsData);
+
+            // Extract the actual array from the response
+            let checkpointsArray = [];
+            if (checkpointsData && checkpointsData.checkpoints && Array.isArray(checkpointsData.checkpoints)) {
+                checkpointsArray = checkpointsData.checkpoints;
+            } else if (Array.isArray(checkpointsData)) {
+                checkpointsArray = checkpointsData;
+            }
+
+            console.log('Processed checkpoints array:', checkpointsArray);
+
             setCheckpoints(prev => ({
                 ...prev,
-                [dataset]: checkpointsData
+                [dataset]: checkpointsArray
             }));
         } catch (error) {
             console.error('Failed to load checkpoints:', error);
+            setCheckpoints(prev => ({
+                ...prev,
+                [dataset]: []
+            }));
         }
     };
 
@@ -89,6 +209,7 @@ const TrainingInterface = () => {
 
             const result = await apiService.startTraining(config);
 
+            // Initialize training in the state
             addTraining(result.training_id, {
                 training_id: result.training_id,
                 status: 'starting',
@@ -99,10 +220,14 @@ const TrainingInterface = () => {
                 metrics: {},
                 start_time: new Date().toISOString(),
                 end_time: null,
-                error_message: null
+                error_message: null,
+                // Track if this is a resumed session
+                resumed_from_epoch: trainingConfig.resume_mode !== 'fresh' ? null : 0,
+                resume_mode: trainingConfig.resume_mode
             });
 
             toast.success('Training started successfully!');
+            console.log('🎯 Training started with ID:', result.training_id);
         } catch (error) {
             toast.error(error.message || 'Failed to start training');
         } finally {
@@ -120,11 +245,19 @@ const TrainingInterface = () => {
     };
 
     const canStartTraining = () => {
-        return systemStatus?.dcgan_available &&
-            selectedDataset &&
-            trainingConfig.epochs > 0 &&
-            !isStarting &&
-            Object.values(activeTrainings).filter(t => t.status === 'running').length === 0;
+        const hasActive = hasActiveTraining();
+        const systemReady = systemStatus?.dcgan_available;
+        const configValid = selectedDataset && trainingConfig.epochs > 0;
+
+        console.log('🔍 canStartTraining check:', {
+            hasActive,
+            systemReady,
+            configValid,
+            isStarting,
+            result: systemReady && configValid && !isStarting && !hasActive
+        });
+
+        return systemReady && configValid && !isStarting && !hasActive;
     };
 
     return (
@@ -139,7 +272,7 @@ const TrainingInterface = () => {
                         Configure and monitor GAN training sessions
                     </p>
                 </div>
-                <SystemStatusIndicator status={systemStatus} />
+                <SystemStatusIndicator status={systemStatus} isConnected={isConnected} />
             </div>
 
             {/* Main Content */}
@@ -155,9 +288,12 @@ const TrainingInterface = () => {
                         checkpoints={checkpoints[selectedDataset] || []}
                         onStartTraining={handleStartTraining}
                         canStartTraining={canStartTraining()}
+                        hasActiveTraining={hasActiveTraining()}
+                        getRunningTrainings={getRunningTrainings}
                         isStarting={isStarting}
                         showAdvanced={showAdvanced}
                         setShowAdvanced={setShowAdvanced}
+                        systemStatus={systemStatus}
                     />
                 </div>
 
@@ -176,6 +312,15 @@ const TrainingInterface = () => {
                 datasets={datasets}
                 onLoadCheckpoint={loadCheckpoints}
             />
+
+            {/* WebSocket Debug Panel - Enhanced */}
+            {process.env.NODE_ENV === 'development' && (
+                <DebugWebSocketMessages
+                    lastMessage={lastMessage}
+                    isConnected={isConnected}
+                    activeTrainings={activeTrainings}
+                />
+            )}
         </div>
     );
 };
@@ -190,9 +335,12 @@ const TrainingConfigPanel = ({
                                  checkpoints,
                                  onStartTraining,
                                  canStartTraining,
+                                 hasActiveTraining,
+                                 getRunningTrainings,
                                  isStarting,
                                  showAdvanced,
-                                 setShowAdvanced
+                                 setShowAdvanced,
+                                 systemStatus
                              }) => {
     return (
         <motion.div
@@ -299,7 +447,7 @@ const TrainingConfigPanel = ({
                 </AnimatePresence>
 
                 {/* Available Checkpoints Info */}
-                {checkpoints.length > 0 && (
+                {Array.isArray(checkpoints) && checkpoints.length > 0 && (
                     <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
                         <div className="flex items-center space-x-2 text-blue-600 dark:text-blue-400 mb-2">
                             <Database className="w-4 h-4" />
@@ -340,6 +488,21 @@ const TrainingConfigPanel = ({
                         </>
                     )}
                 </motion.button>
+
+                {/* Training Status Info */}
+                {!canStartTraining && !isStarting && (
+                    <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+                        <div className="text-sm text-yellow-700 dark:text-yellow-300">
+                            {!systemStatus?.dcgan_available ? (
+                                <>⚠️ DCGAN system not available</>
+                            ) : hasActiveTraining ? (
+                                <>🏃 Training already in progress ({getRunningTrainings().length} active)</>
+                            ) : (
+                                <>⚙️ Check configuration</>
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
         </motion.div>
     );
@@ -348,7 +511,9 @@ const TrainingConfigPanel = ({
 // Training Monitoring Panel
 const TrainingMonitoringPanel = ({ activeTrainings, onStopTraining }) => {
     const trainingArray = Object.values(activeTrainings);
-    const runningTrainings = trainingArray.filter(t => t.status === 'running');
+
+    // Debug logging
+    console.log('🎯 TrainingMonitoringPanel: Rendering with trainings:', trainingArray);
 
     return (
         <motion.div
@@ -356,9 +521,14 @@ const TrainingMonitoringPanel = ({ activeTrainings, onStopTraining }) => {
             animate={{ opacity: 1, y: 0 }}
             className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700"
         >
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Training Monitoring
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Training Monitoring
+                </h3>
+                <div className="text-sm text-gray-500">
+                    {trainingArray.length} session{trainingArray.length !== 1 ? 's' : ''}
+                </div>
+            </div>
 
             {trainingArray.length === 0 ? (
                 <EmptyTrainingState />
@@ -377,13 +547,14 @@ const TrainingMonitoringPanel = ({ activeTrainings, onStopTraining }) => {
     );
 };
 
-// Training Card Component
+// Enhanced Training Card Component with better progress display
 const TrainingCard = ({ training, onStop }) => {
     const getStatusIcon = (status) => {
         switch (status) {
-            case 'running': return <Zap className="w-4 h-4 text-blue-500" />;
+            case 'running': return <Zap className="w-4 h-4 text-blue-500 animate-pulse" />;
             case 'completed': return <CheckCircle className="w-4 h-4 text-green-500" />;
             case 'error': return <AlertTriangle className="w-4 h-4 text-red-500" />;
+            case 'starting': return <RefreshCw className="w-4 h-4 text-yellow-500 animate-spin" />;
             default: return <Clock className="w-4 h-4 text-gray-500" />;
         }
     };
@@ -393,9 +564,19 @@ const TrainingCard = ({ training, onStop }) => {
             case 'running': return 'border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20';
             case 'completed': return 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20';
             case 'error': return 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20';
+            case 'starting': return 'border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-900/20';
             default: return 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/20';
         }
     };
+
+    // Ensure safe number conversion
+    const currentEpoch = parseInt(training.current_epoch) || 0;
+    const totalEpochs = parseInt(training.total_epochs) || 1;
+    const progressPercentage = parseFloat(training.progress_percentage) || 0;
+
+    // Show resumed training information
+    const isResumedSession = training.resume_mode && training.resume_mode !== 'fresh';
+    const backendEpoch = training.backend_current_epoch;
 
     return (
         <motion.div
@@ -407,14 +588,19 @@ const TrainingCard = ({ training, onStop }) => {
                 <div className="flex items-center space-x-2">
                     {getStatusIcon(training.status)}
                     <span className="font-medium text-gray-900 dark:text-white">
-            {training.dataset.toUpperCase()} Training
-          </span>
+                        {training.dataset?.toUpperCase() || 'Unknown'} Training
+                    </span>
                     <span className="text-sm text-gray-500">
-            ({training.training_id.slice(0, 8)})
-          </span>
+                        ({training.training_id?.slice(0, 8) || 'Unknown'})
+                    </span>
+                    {isResumedSession && (
+                        <span className="text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 px-2 py-1 rounded">
+                            Resumed
+                        </span>
+                    )}
                 </div>
 
-                {training.status === 'running' && (
+                {(training.status === 'running' || training.status === 'starting') && (
                     <button
                         onClick={onStop}
                         className="flex items-center space-x-1 px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
@@ -428,29 +614,56 @@ const TrainingCard = ({ training, onStop }) => {
             {/* Progress Bar */}
             <div className="mb-3">
                 <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-1">
-                    <span>Epoch {training.current_epoch}/{training.total_epochs}</span>
-                    <span>{training.progress_percentage.toFixed(1)}%</span>
+                    <span>
+                        Epoch {currentEpoch}/{totalEpochs}
+                        {backendEpoch !== undefined && backendEpoch !== currentEpoch && (
+                            <span className="text-xs text-gray-500 ml-1">
+                                (backend: {backendEpoch})
+                            </span>
+                        )}
+                    </span>
+                    <span>{progressPercentage.toFixed(1)}%</span>
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                     <motion.div
                         initial={{ width: 0 }}
-                        animate={{ width: `${training.progress_percentage}%` }}
+                        animate={{ width: `${Math.min(progressPercentage, 100)}%` }}
+                        transition={{ duration: 0.5 }}
                         className="bg-blue-600 h-2 rounded-full"
                     />
                 </div>
             </div>
 
+            {/* Resume Information */}
+            {isResumedSession && (
+                <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-900/10 rounded text-sm">
+                    <div className="text-blue-700 dark:text-blue-400">
+                        📄 Resume Mode: {training.resume_mode}
+                        {training.resumed_from_epoch > 0 && (
+                            <span className="ml-2">• Started from epoch {training.resumed_from_epoch}</span>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* Metrics */}
-            {Object.keys(training.metrics).length > 0 && (
-                <div className="grid grid-cols-2 gap-4 text-sm">
+            {training.metrics && Object.keys(training.metrics).length > 0 && (
+                <div className="grid grid-cols-2 gap-4 text-sm mb-2">
                     {Object.entries(training.metrics).map(([key, value]) => (
                         <div key={key}>
                             <span className="text-gray-500 dark:text-gray-400">{key}:</span>
                             <span className="ml-1 font-medium text-gray-900 dark:text-white">
-                {typeof value === 'number' ? value.toFixed(4) : value}
-              </span>
+                                {typeof value === 'number' ? value.toFixed(4) : value}
+                            </span>
                         </div>
                     ))}
+                </div>
+            )}
+
+            {/* Last Update Time */}
+            {training.last_update && (
+                <div className="text-xs text-gray-500">
+                    Last update: {new Date(training.last_update).toLocaleTimeString()}
                 </div>
             )}
 
@@ -514,8 +727,13 @@ const TrainingHistoryPanel = ({ checkpoints, datasets, onLoadCheckpoint }) => {
     );
 };
 
-// Checkpoint List Component
+// Fixed Checkpoint List Component
 const CheckpointList = ({ datasetKey, dataset, checkpoints }) => {
+    // Ensure checkpoints is always an array
+    const checkpointsArray = Array.isArray(checkpoints) ? checkpoints : [];
+
+    console.log('CheckpointList received:', { datasetKey, dataset, checkpoints, checkpointsArray });
+
     return (
         <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
@@ -523,29 +741,29 @@ const CheckpointList = ({ datasetKey, dataset, checkpoints }) => {
                     {dataset.name}
                 </h4>
                 <span className="text-sm text-gray-500">
-          {checkpoints.length} checkpoints
-        </span>
+                    {checkpointsArray.length} checkpoints
+                </span>
             </div>
 
-            {checkpoints.length === 0 ? (
+            {checkpointsArray.length === 0 ? (
                 <div className="text-center py-4">
                     <Database className="w-8 h-8 text-gray-400 mx-auto mb-2" />
                     <p className="text-sm text-gray-500">No checkpoints available</p>
                 </div>
             ) : (
                 <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {checkpoints.slice(0, 5).map((checkpoint, index) => (
+                    {checkpointsArray.slice(0, 5).map((checkpoint, index) => (
                         <CheckpointItem
-                            key={index}
+                            key={checkpoint.filename || checkpoint.name || index}
                             checkpoint={checkpoint}
                             datasetKey={datasetKey}
                         />
                     ))}
-                    {checkpoints.length > 5 && (
+                    {checkpointsArray.length > 5 && (
                         <div className="text-center py-2">
-              <span className="text-sm text-gray-500">
-                +{checkpoints.length - 5} more checkpoints
-              </span>
+                            <span className="text-sm text-gray-500">
+                                +{checkpointsArray.length - 5} more checkpoints
+                            </span>
                         </div>
                     )}
                 </div>
@@ -574,7 +792,7 @@ const CheckpointItem = ({ checkpoint, datasetKey }) => {
                     Epoch {checkpoint.epoch}
                 </div>
                 <div className="text-xs text-gray-500">
-                    {checkpoint.file_size_mb.toFixed(1)} MB • {new Date(checkpoint.timestamp).toLocaleDateString()}
+                    {checkpoint.file_size_mb?.toFixed(1) || '0.0'} MB • {new Date(checkpoint.timestamp).toLocaleDateString()}
                 </div>
             </div>
 
@@ -589,22 +807,99 @@ const CheckpointItem = ({ checkpoint, datasetKey }) => {
     );
 };
 
-// System Status Indicator
-const SystemStatusIndicator = ({ status }) => {
+// Enhanced System Status Indicator
+const SystemStatusIndicator = ({ status, isConnected }) => {
     if (!status) return null;
 
     const isReady = status.status === 'online' && status.dcgan_available;
 
     return (
-        <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-sm ${
-            isReady
-                ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-400'
-                : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-400'
-        }`}>
-            <div className={`w-2 h-2 rounded-full ${isReady ? 'bg-green-500' : 'bg-yellow-500'}`} />
-            <span className="font-medium">
-        {isReady ? 'Ready for Training' : 'System Not Ready'}
-      </span>
+        <div className="flex items-center space-x-4">
+            {/* WebSocket Status */}
+            <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-sm ${
+                isConnected
+                    ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-400'
+                    : 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-400'
+            }`}>
+                <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+                <span className="font-medium">
+                    {isConnected ? 'Connected' : 'Disconnected'}
+                </span>
+            </div>
+
+            {/* System Status */}
+            <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-sm ${
+                isReady
+                    ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-400'
+                    : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-400'
+            }`}>
+                <div className={`w-2 h-2 rounded-full ${isReady ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                <span className="font-medium">
+                    {isReady ? 'Ready for Training' : 'System Not Ready'}
+                </span>
+            </div>
+        </div>
+    );
+};
+
+// Enhanced Debug WebSocket Messages Component
+const DebugWebSocketMessages = ({ lastMessage, isConnected, activeTrainings }) => {
+    const [messages, setMessages] = useState([]);
+
+    useEffect(() => {
+        if (lastMessage) {
+            setMessages(prev => [
+                { ...lastMessage, timestamp: new Date().toISOString() },
+                ...prev.slice(0, 9) // Keep last 10 messages
+            ]);
+        }
+    }, [lastMessage]);
+
+    if (process.env.NODE_ENV !== 'development') {
+        return null;
+    }
+
+    return (
+        <div className="fixed bottom-4 left-4 bg-gray-900 text-white p-4 rounded-lg max-w-md max-h-96 overflow-y-auto text-xs z-50">
+            <h4 className="font-bold mb-2 text-yellow-400">
+                WebSocket Debug ({isConnected ? 'Connected' : 'Disconnected'})
+            </h4>
+
+            {/* Active Trainings Count */}
+            <div className="mb-2 p-2 bg-gray-800 rounded">
+                <div className="text-green-400">Active Trainings: {Object.keys(activeTrainings).length}</div>
+                {Object.entries(activeTrainings).map(([id, training]) => (
+                    <div key={id} className="text-blue-400 text-xs">
+                        {id.slice(0, 8)}: {training.status} - Epoch {training.current_epoch}/{training.total_epochs} ({training.progress_percentage?.toFixed(1)}%)
+                        {training.backend_current_epoch !== undefined && (
+                            <span className="text-yellow-400"> [Backend: {training.backend_current_epoch}]</span>
+                        )}
+                    </div>
+                ))}
+            </div>
+
+            {messages.length === 0 ? (
+                <div className="text-gray-400">No messages received yet...</div>
+            ) : (
+                messages.map((msg, index) => (
+                    <div key={index} className="mb-2 p-2 bg-gray-800 rounded">
+                        <div className="text-yellow-400">Type: {msg.type || 'unknown'}</div>
+                        <div className="text-green-400">Time: {new Date(msg.timestamp).toLocaleTimeString()}</div>
+                        {msg.training_id && (
+                            <div className="text-purple-400">Training ID: {msg.training_id.slice(0, 8)}</div>
+                        )}
+                        {msg.data && (
+                            <div className="text-blue-400">
+                                Epoch: {msg.data.current_epoch}/{msg.data.total_epochs} ({msg.data.progress_percentage?.toFixed(1)}%)
+                            </div>
+                        )}
+                        <div className="text-gray-400 mt-1">
+                            Raw: {JSON.stringify(msg, null, 2).slice(0, 200)}
+                            {JSON.stringify(msg, null, 2).length > 200 && '...'}
+                        </div>
+                    </div>
+                ))
+            )}
         </div>
     );
 };
