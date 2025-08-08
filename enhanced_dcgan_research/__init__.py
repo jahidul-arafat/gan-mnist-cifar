@@ -6,7 +6,7 @@ A comprehensive framework for Enhanced Deep Convolutional Generative Adversarial
 with academic reporting, advanced checkpointing, and production-ready features.
 """
 
-__version__ = "0.1.2"
+__version__ = "0.1.4"
 __author__ = "Jahidul Arafat"
 __email__ = "jahidapon@gmail.com"
 

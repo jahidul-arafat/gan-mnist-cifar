@@ -6,7 +6,8 @@ Enhanced DCGAN Research Framework - Production CLI
 Enhanced CLI with animated ASCII art banner and professional presentation.
 FIXED: Compatible with existing fully_integrated_report_v04.py functions and CompositeEnhancedMetricsLogger.
 """
-
+import glob
+import json
 import time
 import sys
 import os
@@ -90,7 +91,7 @@ def show_animated_banner():
         f"│  🔬 Academic Research Framework with Complete Image Generation             │",
         f"│  🏗️  Production-Ready Implementation with Advanced Features                │",
         f"│                                                                            │",
-        f"│  📅 Version: v0.1.2                                                        │",
+        f"│  📅 Version: v0.1.4                                                        │",
         f"│  👨‍💻 Developed by: Enhanced AI Research Team by Jahidul Arafat              │",
         f"│  📧 Contact: jahidapon@gmail.com, Linkedin: https://www.linkedin.com/in/jahidul-arafat-presidential-fellow-phd-candidate-791a7490/│",
         f"│  🌐 Repository: https://github.com/jahidul-arafat/gan-mnist-cifar          │",
@@ -166,8 +167,8 @@ def show_version_info():
     print()
 
     version_info = [
-        ("Version", "v0.1.2"),
-        ("Release Date", "2024-12-19"),
+        ("Version", "v0.1.4"),
+        ("Release Date", "2025-08-07"),
         ("Build", "Production"),
         ("Python Requirements", ">=3.8"),
         ("PyTorch Requirements", ">=2.0.0"),
@@ -209,6 +210,306 @@ def show_version_info():
 
     for device in devices:
         print(f"  {device}")
+
+def show_training_sessions(dataset_key):
+    """Show all training sessions for a dataset with detailed information - FIXED"""
+
+    print_with_color(f"\n🔄 TRAINING SESSIONS FOR {dataset_key.upper()}", "94;1")
+    print_with_color("─" * 60, "94")
+
+    try:
+        # Import the composite logger
+        from enhanced_dcgan_research.composite_enhanced_metrics_logger import CompositeEnhancedMetricsLogger
+
+        # Create temporary logger to read existing data
+        temp_logger = CompositeEnhancedMetricsLogger(dataset_key)
+
+        # FIXED: Check if we have actual training data instead of just log files
+        has_training_data = False
+
+        # Check if complete training log exists and has data
+        if temp_logger.full_training_log.exists():
+            try:
+                import json
+                with open(temp_logger.full_training_log, 'r') as f:
+                    log_data = json.load(f)
+
+                # Check if we have actual training sessions
+                training_sessions = log_data.get('training_sessions', [])
+                step_metrics = log_data.get('step_metrics', [])
+                epoch_summaries = log_data.get('epoch_summaries', [])
+
+                if training_sessions and (step_metrics or epoch_summaries):
+                    has_training_data = True
+
+                    print(f"✅ Found training data for {dataset_key.upper()}!")
+                    print(f"📊 Training sessions: {len(training_sessions)}")
+                    print(f"📈 Total epochs: {len(epoch_summaries)}")
+                    print(f"📊 Total steps: {len(step_metrics):,}")
+
+                    # Display session details
+                    print(f"\n📋 SESSION DETAILS:")
+                    total_training_time = 0
+
+                    for i, session in enumerate(training_sessions, 1):
+                        session_id = session.get('session_id', f'session_{i}')
+                        start_time = session.get('start_time', 'Unknown')
+                        end_time = session.get('end_time', 'Unknown')
+                        epochs_completed = session.get('epochs_completed', 0)
+                        steps_completed = session.get('steps_completed', 0)
+                        device_info = session.get('device_info', {})
+                        device_type = device_info.get('device_type', 'Unknown')
+
+                        print(f"\n   🔄 Session {i} ({session_id}):")
+                        print(f"      📅 Started: {start_time}")
+                        print(f"      🏁 Ended: {end_time}")
+                        print(f"      📊 Epochs: {epochs_completed}")
+                        print(f"      📈 Steps: {steps_completed:,}")
+                        print(f"      🖥️  Device: {device_type.upper()}")
+
+                        # Calculate session duration if possible
+                        try:
+                            from datetime import datetime
+                            if start_time != 'Unknown' and end_time != 'Unknown':
+                                start_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+                                end_dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+                                duration = (end_dt - start_dt).total_seconds() / 3600  # hours
+                                total_training_time += duration
+                                print(f"      ⏱️  Duration: {duration:.2f} hours")
+                        except:
+                            pass
+
+                    # Display overall statistics
+                    if total_training_time > 0:
+                        print(f"\n📊 OVERALL STATISTICS:")
+                        print(f"   ⏱️  Total training time: {total_training_time:.2f} hours")
+                        print(f"   📈 Average steps per session: {len(step_metrics) // len(training_sessions):,}")
+                        print(f"   📊 Average epochs per session: {len(epoch_summaries) // len(training_sessions)}")
+
+                    # Show file information
+                    print(f"\n📁 LOG FILES:")
+                    log_files = [
+                        (temp_logger.step_metrics_file, "Step Metrics"),
+                        (temp_logger.epoch_summaries_file, "Epoch Summaries"),
+                        (temp_logger.full_training_log, "Complete Training Log")
+                    ]
+
+                    for file_path, description in log_files:
+                        if file_path.exists():
+                            size_mb = file_path.stat().st_size / (1024*1024)
+                            mod_time = datetime.fromtimestamp(file_path.stat().st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+                            print(f"   📄 {description}: {file_path.name} ({size_mb:.1f} MB) - {mod_time}")
+
+                    # Show latest training metrics if available
+                    if epoch_summaries:
+                        latest_epoch = epoch_summaries[-1]
+                        print(f"\n📈 LATEST TRAINING METRICS:")
+                        print(f"   📅 Last epoch: {latest_epoch.get('epoch', 'Unknown')}")
+
+                        metrics = ['avg_d_loss', 'avg_g_loss', 'avg_wd', 'avg_gp', 'ema_quality']
+                        for metric in metrics:
+                            if metric in latest_epoch:
+                                value = latest_epoch[metric]
+                                if isinstance(value, (int, float)):
+                                    print(f"   📊 {metric.replace('avg_', '').replace('_', ' ').title()}: {value:.6f}")
+
+                    # Show available analysis commands
+                    print(f"\n💡 ANALYSIS COMMANDS:")
+                    print(f"   enhanced-dcgan analyze {temp_logger.full_training_log}")
+                    print(f"   enhanced-dcgan logs")
+
+            except json.JSONDecodeError as e:
+                print(f"❌ Error reading training log: {e}")
+                print(f"💡 Log file may be corrupted")
+            except Exception as e:
+                print(f"❌ Error processing training data: {e}")
+
+        # If no training data found, show help
+        if not has_training_data:
+            print(f"❌ No training sessions found for {dataset_key}")
+            print(f"💡 To create training sessions:")
+            print(f"   enhanced-dcgan --dataset {dataset_key} --epochs 25")
+
+            # Check if any log files exist at all
+            log_dir = temp_logger.log_dir
+            if log_dir.exists():
+                json_files = list(log_dir.glob("*.json"))
+                if json_files:
+                    print(f"\n📁 Found {len(json_files)} log files in {log_dir}:")
+                    for json_file in json_files:
+                        size_mb = json_file.stat().st_size / (1024*1024)
+                        print(f"   📄 {json_file.name} ({size_mb:.1f} MB)")
+                    print(f"💡 Files may be empty or corrupted")
+
+    except ImportError as e:
+        print(f"❌ Could not load session management: {e}")
+        print(f"💡 Make sure the composite metrics logger is available")
+    except Exception as e:
+        print(f"❌ Error reading sessions: {e}")
+        print(f"📍 Debug info: {str(e)}")
+
+def analyze_training_logs(log_file_path):
+    """Analyze composite training logs with cross-session analytics"""
+
+    print_with_color(f"\n📊 ANALYZING TRAINING LOGS", "93;1")
+    print_with_color("─" * 40, "93")
+    print(f"📄 Log file: {log_file_path}")
+
+    try:
+        # Check if file exists
+        if not os.path.exists(log_file_path):
+            print(f"❌ Log file not found: {log_file_path}")
+
+            # Try to find similar files
+            log_dir = os.path.dirname(log_file_path) or "./training_logs"
+            if os.path.exists(log_dir):
+                print(f"\n🔍 Available log files in {log_dir}:")
+                log_files = glob.glob(f"{log_dir}/*.json")
+                if log_files:
+                    for log_file in sorted(log_files):
+                        size_mb = os.path.getsize(log_file) / (1024*1024)
+                        print(f"   📄 {os.path.basename(log_file)} ({size_mb:.1f} MB)")
+                else:
+                    print(f"   ❌ No JSON log files found")
+            return
+
+        # Import analysis function
+        from enhanced_dcgan_research.composite_enhanced_metrics_logger import analyze_composite_training_metrics
+
+        print(f"🔄 Loading and analyzing training data...")
+
+        # Perform the analysis
+        result = analyze_composite_training_metrics(log_file_path)
+
+        if result:
+            print(f"✅ Analysis completed successfully!")
+            print(f"📊 Check the generated visualizations and analysis output")
+        else:
+            print(f"⚠️ Analysis completed but may have encountered issues")
+
+    except ImportError as e:
+        print(f"❌ Could not load analysis functions: {e}")
+        print(f"💡 Make sure the composite metrics logger is available")
+    except FileNotFoundError:
+        print(f"❌ Log file not found: {log_file_path}")
+    except json.JSONDecodeError as e:
+        print(f"❌ Invalid JSON in log file: {e}")
+        print(f"💡 The log file may be corrupted or incomplete")
+    except Exception as e:
+        print(f"❌ Analysis failed: {e}")
+        print(f"📍 Error details: {str(e)}")
+
+def list_all_log_files():
+    """List all available training log files across all datasets"""
+
+    print_with_color(f"\n📁 ALL AVAILABLE TRAINING LOGS", "92;1")
+    print_with_color("─" * 50, "92")
+
+    log_directory = "./training_logs"
+
+    if not os.path.exists(log_directory):
+        print(f"❌ Training logs directory not found: {log_directory}")
+        print(f"💡 No training sessions have been run yet")
+        return
+
+    # Find all JSON log files
+    log_files = glob.glob(f"{log_directory}/*.json")
+
+    if not log_files:
+        print(f"❌ No training log files found in {log_directory}")
+        print(f"💡 Run some training sessions to generate logs")
+        return
+
+    # Group by dataset and experiment
+    datasets = {}
+
+    for log_file in sorted(log_files):
+        filename = os.path.basename(log_file)
+        size_mb = os.path.getsize(log_file) / (1024*1024)
+        mod_time = datetime.fromtimestamp(os.path.getmtime(log_file)).strftime('%Y-%m-%d %H:%M:%S')
+
+        # Parse filename to extract dataset
+        if filename.startswith('mnist_'):
+            dataset = 'mnist'
+        elif filename.startswith('cifar10_'):
+            dataset = 'cifar10'
+        else:
+            dataset = 'unknown'
+
+        if dataset not in datasets:
+            datasets[dataset] = []
+
+        datasets[dataset].append({
+            'filename': filename,
+            'full_path': log_file,
+            'size_mb': size_mb,
+            'modified': mod_time
+        })
+
+    # Display grouped results
+    for dataset, files in datasets.items():
+        print(f"\n🎯 {dataset.upper()} LOGS:")
+
+        for file_info in files:
+            file_type = "❓ Unknown"
+            if "step_metrics" in file_info['filename']:
+                file_type = "📊 Step Metrics"
+            elif "epoch_summaries" in file_info['filename']:
+                file_type = "📋 Epoch Summaries"
+            elif "complete_training_log" in file_info['filename']:
+                file_type = "📖 Complete Log"
+
+            print(f"   {file_type}: {file_info['filename']}")
+            print(f"      📊 Size: {file_info['size_mb']:.1f} MB")
+            print(f"      🕒 Modified: {file_info['modified']}")
+            print(f"      📁 Path: {file_info['full_path']}")
+            print()
+
+    print(f"📋 ANALYSIS COMMANDS:")
+    for dataset, files in datasets.items():
+        complete_logs = [f for f in files if "complete_training_log" in f['filename']]
+        if complete_logs:
+            log_file = complete_logs[0]['full_path']
+            print(f"   enhanced-dcgan analyze {log_file}")
+
+def show_session_help():
+    """Show detailed help for session management commands"""
+
+    print_with_color("\n🔄 SESSION MANAGEMENT HELP", "96;1")
+    print_with_color("─" * 40, "96")
+
+    commands = [
+        {
+            "command": "enhanced-dcgan sessions <dataset>",
+            "description": "View all training sessions for a dataset",
+            "examples": [
+                "enhanced-dcgan sessions mnist",
+                "enhanced-dcgan sessions cifar10"
+            ]
+        },
+        {
+            "command": "enhanced-dcgan analyze <log_file>",
+            "description": "Analyze composite training logs with cross-session analytics",
+            "examples": [
+                "enhanced-dcgan analyze ./training_logs/mnist_exp_complete_training_log.json",
+                "enhanced-dcgan analyze ./training_logs/cifar10_research_complete_training_log.json"
+            ]
+        },
+        {
+            "command": "enhanced-dcgan logs",
+            "description": "List all available training log files",
+            "examples": [
+                "enhanced-dcgan logs"
+            ]
+        }
+    ]
+
+    for cmd_info in commands:
+        print(f"\n📋 {cmd_info['command']}")
+        print(f"   📝 {cmd_info['description']}")
+        print(f"   💡 Examples:")
+        for example in cmd_info['examples']:
+            print(f"      {example}")
 
 def get_comprehensive_status_with_metrics():
     """Get comprehensive system status including datasets, metrics, and current values."""
@@ -1302,27 +1603,49 @@ def display_executive_summary(datasets, system, features):
 # display_executive_summary(datasets, system, features)
 
 def main():
-    """Enhanced main entry point with animated banner - FIXED for compatibility."""
+    """Enhanced main entry point with session management commands and animated banner"""
     import argparse
 
-    # Create parser - UPDATED to match your existing description
+    # Create parser with enhanced session management support
     parser = argparse.ArgumentParser(
-        description='FIXED Fully Integrated Enhanced DCGAN Academic Research with Complete Image Generation and Composite Metrics Logging',
+        description='Enhanced DCGAN Research Framework with Multi-Session Analytics and Complete Session Management',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
-  enhanced-dcgan                           # Interactive mode with banner
-  enhanced-dcgan --dataset mnist --epochs 50   # Train MNIST for 50 epochs  
-  enhanced-dcgan --demo                    # Quick demo
-  enhanced-dcgan --version                 # Show version information
-  enhanced-dcgan --no-banner               # Skip animated banner
-  enhanced-dcgan --status                  # Show comprehensive status
+🔄 Session Management Commands:
+  enhanced-dcgan sessions mnist                    # View all MNIST training sessions
+  enhanced-dcgan sessions cifar10                 # View all CIFAR-10 training sessions
+  enhanced-dcgan analyze ./training_logs/mnist_*_complete_training_log.json  # Analyze training logs
+  enhanced-dcgan logs                             # List all available log files
+  enhanced-dcgan help                             # Show detailed session management help
+
+🚀 Training Commands:
+  enhanced-dcgan                                  # Interactive mode with animated banner
+  enhanced-dcgan --dataset mnist --epochs 50     # Train MNIST for 50 epochs  
+  enhanced-dcgan --dataset cifar10 --resume latest  # Resume latest CIFAR-10 training
+  enhanced-dcgan --demo                          # Quick demo with capabilities showcase
+  enhanced-dcgan --test                          # Run comprehensive integration tests
+  enhanced-dcgan --status                        # Show comprehensive system status
+  enhanced-dcgan --version                       # Show version information
+
+📊 Advanced Features:
+  • Multi-session training analytics with seamless resume
+  • Cross-session performance comparison and trend analysis
+  • Complete training genealogy and session boundary tracking
+  • Emergency recovery with graceful interrupt handling (Ctrl+C)
+  • Interactive generation with natural language prompts
+  • Production-ready checkpoint management with auto-save
 
 For more information, visit: https://github.com/jahidul-arafat/gan-mnist-cifar
         """
     )
 
-    # FIXED: Add all your existing arguments
+    # Session management commands (positional arguments)
+    parser.add_argument('command', nargs='?',
+                        help='Session management command (sessions, analyze, logs, help)')
+    parser.add_argument('target', nargs='?',
+                        help='Target for command (dataset name for sessions, log file path for analyze)')
+
+    # Training configuration arguments
     parser.add_argument('--version', action='store_true',
                         help='Show version information and exit')
     parser.add_argument('--dataset', choices=['mnist', 'cifar10'],
@@ -1332,15 +1655,17 @@ For more information, visit: https://github.com/jahidul-arafat/gan-mnist-cifar
     parser.add_argument('--resume', choices=['interactive', 'latest', 'fresh'],
                         default='interactive', help='Resume mode (default: interactive)')
     parser.add_argument('--interactive', action='store_true',
-                        help='Run in interactive mode')
+                        help='Run in interactive mode with full session management')
+
+    # System and diagnostic commands
     parser.add_argument('--demo', action='store_true',
                         help='Run quick demo of image generation capabilities')
     parser.add_argument('--test', action='store_true',
-                        help='Run comprehensive integration test')
+                        help='Run comprehensive integration test including session management')
     parser.add_argument('--status', action='store_true',
-                        help='Show integration status including image generation and composite metrics')
+                        help='Show comprehensive status including session analytics')
 
-    # NEW: Additional options for enhanced CLI
+    # UI and output control
     parser.add_argument('--no-banner', action='store_true',
                         help='Skip animated banner (for faster startup)')
     parser.add_argument('--quiet', '-q', action='store_true',
@@ -1348,16 +1673,82 @@ For more information, visit: https://github.com/jahidul-arafat/gan-mnist-cifar
 
     args = parser.parse_args()
 
-    # Handle version flag first
+    # Handle version flag first (highest priority)
     if args.version:
         show_version_info()
         return
+
+    # Handle session management commands (second priority)
+    if args.command:
+        command = args.command.lower()
+
+        if command == "sessions":
+            if not args.target:
+                print_with_color("❌ Please specify a dataset (mnist or cifar10)", "91")
+                print("\n📋 Usage: enhanced-dcgan sessions <dataset>")
+                print("\n💡 Examples:")
+                print("  enhanced-dcgan sessions mnist      # View all MNIST training sessions")
+                print("  enhanced-dcgan sessions cifar10    # View all CIFAR-10 training sessions")
+                print("\n🔍 This command shows:")
+                print("  • Complete training session history")
+                print("  • Session boundaries and transitions")
+                print("  • Cross-session performance metrics")
+                print("  • Log file information and sizes")
+                print("  • Session-specific statistics")
+                return
+
+            if args.target.lower() not in ['mnist', 'cifar10']:
+                print_with_color(f"❌ Invalid dataset: {args.target}", "91")
+                print("✅ Valid datasets: mnist, cifar10")
+                print("\n💡 Examples:")
+                print("  enhanced-dcgan sessions mnist")
+                print("  enhanced-dcgan sessions cifar10")
+                return
+
+            show_training_sessions(args.target.lower())
+            return
+
+        elif command == "analyze":
+            if not args.target:
+                print_with_color("❌ Please specify a log file path", "91")
+                print("\n📋 Usage: enhanced-dcgan analyze <log_file_path>")
+                print("\n💡 Examples:")
+                print("  enhanced-dcgan analyze ./training_logs/mnist_exp_complete_training_log.json")
+                print("  enhanced-dcgan analyze ./training_logs/cifar10_research_complete_training_log.json")
+                print("\n🔍 This command provides:")
+                print("  • Cross-session performance analytics")
+                print("  • Multi-session trend analysis")
+                print("  • Session boundary visualization")
+                print("  • Complete training timeline analysis")
+                print("\n📁 Use 'enhanced-dcgan logs' to see available log files")
+                return
+
+            analyze_training_logs(args.target)
+            return
+
+        elif command == "logs":
+            list_all_log_files()
+            return
+
+        elif command == "help":
+            show_session_help()
+            return
+
+        else:
+            print_with_color(f"❌ Unknown session command: {command}", "91")
+            print("\n✅ Available session commands:")
+            print("  • sessions  - View training sessions for a dataset")
+            print("  • analyze   - Analyze composite training logs")
+            print("  • logs      - List all available log files")
+            print("  • help      - Show detailed session management help")
+            print("\n💡 Use 'enhanced-dcgan help' for complete session management documentation")
+            return
 
     # Show animated banner unless skipped or in quiet mode
     if not args.no_banner and not args.quiet:
         show_animated_banner()
 
-    # FIXED: Import after banner to avoid premature device output during banner
+    # Import after banner to avoid premature device output during banner
     try:
         # Import your existing functions - UPDATED for correct import path
         from .enhanced_dcgan_mnist_cifar_for_apple_mps_checkpoints_graceful_v02 import (
@@ -1385,43 +1776,57 @@ For more information, visit: https://github.com/jahidul-arafat/gan-mnist-cifar
         except ImportError as e:
             print_with_color(f"❌ Import Error: {e}", "91;1")
             if not args.quiet:
-                print("💡 Make sure all dependencies are installed")
+                print("💡 Make sure all dependencies are installed and the module structure is correct")
+                print("📦 Try: pip install -e .")
             return
 
-    # FIXED: Handle special commands exactly like your original
+    # Handle system diagnostic commands (third priority)
     if args.demo:
         try:
+            if not args.quiet:
+                print_with_color("🎨 Running Enhanced DCGAN Demo with Session Management...", "93;1")
             quick_demo_with_images()
         except NameError:
-            print("Demo function not available")
-        sys.exit(0)  # FIXED: Add sys.exit(0) like original
+            print_with_color("❌ Demo function not available", "91")
+            print("💡 Make sure the fully_integrated_report_v04 module is properly imported")
+        except Exception as e:
+            print_with_color(f"❌ Demo failed: {e}", "91")
+        sys.exit(0)
 
     if args.test:
         try:
+            if not args.quiet:
+                print_with_color("🧪 Running Comprehensive Integration Tests (Including Session Management)...", "93;1")
             run_integration_test_with_images()
         except NameError:
-            print("Test function not available")
-        sys.exit(0)  # FIXED: Add sys.exit(0) like original
+            print_with_color("❌ Test function not available", "91")
+            print("💡 Make sure the fully_integrated_report_v04 module is properly imported")
+        except Exception as e:
+            print_with_color(f"❌ Integration tests failed: {e}", "91")
+        sys.exit(0)
 
     if args.status:
         try:
+            if not args.quiet:
+                print_with_color("🔍 Generating Comprehensive System Status with Session Analytics...", "93;1")
             display_comprehensive_status()
         except Exception as e:
             print_with_color(f"❌ Status check failed: {e}", "91")
             print("💡 Some information may not be available")
+            print("🔧 Try running with --test flag to diagnose issues")
         sys.exit(0)
 
-    # FIXED: Main execution modes - match your original logic exactly
+    # Main execution modes (fourth priority)
     if args.interactive or args.dataset is None:
-        # Interactive mode
+        # Interactive mode with full session management
         if not args.quiet:
-            # FIXED: Use your exact original text
-            print("\n🎓 Welcome to FIXED Fully Integrated Enhanced DCGAN Academic Research!")
-            print("🖼️ Complete image generation integration FIXED")
+            print("\n🎓 Welcome to Enhanced DCGAN Research Framework with Multi-Session Analytics!")
+            print("🖼️ Complete image generation integration")
             print("🔗 Complete integration with existing enhanced DCGAN pipeline")
-            print("📊 All generated images will be captured and included in reports")
-            print("📋 Enhanced composite metrics logging with multi-session support")
-            print("\nChoose your research configuration:")
+            print("📊 All generated images captured and included in reports")
+            print("📋 🆕 Enhanced composite metrics logging with multi-session support")
+            print("🔄 🆕 Seamless session management and cross-session analytics")
+            print("\n🔬 Choose your research configuration:")
 
         if args.dataset is None:
             dataset_choice = get_dataset_choice()
@@ -1431,24 +1836,28 @@ For more information, visit: https://github.com/jahidul-arafat/gan-mnist-cifar
         if not args.quiet:
             print(f"\n✅ Selected dataset: {DATASETS[dataset_choice].name}")
 
-        # FIXED: Ask about resume mode - exact original logic
+        # Enhanced resume mode selection with session awareness
         if not args.resume or args.resume == 'interactive':
             if not args.quiet:
-                print("\n💾 Checkpoint Resume Options:")
-                print("1. interactive - Choose from available checkpoints")
-                print("2. latest - Auto-resume from latest checkpoint")
-                print("3. fresh - Start fresh training (ignore checkpoints)")
+                print("\n💾 Enhanced Checkpoint Resume Options with Session Continuity:")
+                print("1. interactive - Choose from available checkpoints (shows session info)")
+                print("2. latest - Auto-resume from latest checkpoint (continues session logs)")
+                print("3. fresh - Start fresh training (creates new session)")
 
             while True:
-                resume_choice = input("\nResume mode (interactive/latest/fresh): ").strip().lower()
-                if resume_choice in ['interactive', 'latest', 'fresh']:
-                    resume_mode = resume_choice
-                    break
-                print("Please enter 'interactive', 'latest', or 'fresh'")
+                try:
+                    resume_choice = input("\nResume mode (interactive/latest/fresh): ").strip().lower()
+                    if resume_choice in ['interactive', 'latest', 'fresh']:
+                        resume_mode = resume_choice
+                        break
+                    print("Please enter 'interactive', 'latest', or 'fresh'")
+                except KeyboardInterrupt:
+                    print("\n👋 Exiting gracefully...")
+                    return
         else:
             resume_mode = args.resume
 
-        # FIXED: Ask about epochs - exact original logic
+        # Enhanced epoch selection
         while True:
             try:
                 epochs_input = input(f"\nNumber of epochs (default {args.epochs}): ").strip()
@@ -1458,55 +1867,83 @@ For more information, visit: https://github.com/jahidul-arafat/gan-mnist-cifar
                 print("Please enter a positive number")
             except ValueError:
                 print("Please enter a valid number")
+            except KeyboardInterrupt:
+                print("\n👋 Exiting gracefully...")
+                return
 
         if not args.quiet:
-            # FIXED: Use your exact original text
-            print(f"\n🚀 Starting FIXED fully integrated academic research study with complete image generation...")
-            print(f"   Dataset: {dataset_choice}")
-            print(f"   Epochs: {epochs}")
-            print(f"   Resume Mode: {resume_mode}")
-            print(f"   Integration: Complete (100% feature utilization + image generation)")
-            print(f"   🖼️ Image Generation: FIXED - All images will be captured and documented")
-            print(f"   📊 Metrics Logging: Enhanced composite logging with session tracking")
+            print(f"\n🚀 Starting Enhanced Academic Research with Multi-Session Analytics...")
+            print(f"   🎯 Dataset: {dataset_choice}")
+            print(f"   📅 Epochs: {epochs}")
+            print(f"   🔄 Resume Mode: {resume_mode}")
+            print(f"   🔗 Integration: Complete (100% feature utilization + session management)")
+            print(f"   🖼️ Image Generation: Complete capture and documentation")
+            print(f"   📊 🆕 Session Analytics: Multi-session tracking with cross-session comparison")
+            print(f"   🔄 🆕 Log Continuity: Automatic session boundary detection and continuation")
 
-        # FIXED: Run the study - exact original call
-        reporter, final_report = run_fixed_fully_integrated_academic_study(
-            dataset_choice=dataset_choice,
-            num_epochs=epochs,
-            resume_mode=resume_mode
-        )
+        # Run the enhanced study with session management
+        try:
+            reporter, final_report = run_fixed_fully_integrated_academic_study(
+                dataset_choice=dataset_choice,
+                num_epochs=epochs,
+                resume_mode=resume_mode
+            )
 
-        if final_report:
-            # FIXED: Use your exact original success text
-            print(f"\n🎉 STUDY COMPLETED SUCCESSFULLY!")
-            print(f"📄 View complete report: {final_report}")
-            print(f"🖼️ View generated images: {reporter.report_dir}/generated_samples/")
-            print(f"📊 All training data and images documented for academic use")
-            print(f"📋 Enhanced metrics logged with composite session tracking")
+            if final_report:
+                print(f"\n🎉 ENHANCED RESEARCH STUDY COMPLETED SUCCESSFULLY!")
+                print(f"📄 Complete academic report: {final_report}")
+                print(f"🖼️ Generated images: {reporter.report_dir}/generated_samples/")
+                print(f"📊 Training data and session analytics: documented for academic use")
+                print(f"📋 🆕 Multi-session logs: ./training_logs/ (seamless cross-session tracking)")
+                print(f"🔄 🆕 Session continuity: All sessions linked and trackable")
+            else:
+                print(f"\n⚠️ Study completed but report generation may have encountered issues")
+
+        except Exception as e:
+            print_with_color(f"\n❌ Training encountered an error: {e}", "91")
+            print("🛡️ Emergency recovery systems should have preserved your progress")
+            print("💡 Check emergency checkpoints and session logs for recovery")
 
     else:
-        # FIXED: Command line mode - exact original logic
+        # Command line mode with session management
         if not args.quiet:
-            print(f"🎓 Running FIXED Fully Integrated Enhanced DCGAN Academic Study")
-            print(f"   Dataset: {args.dataset}")
-            print(f"   Epochs: {args.epochs}")
-            print(f"   Resume Mode: {args.resume}")
-            print(f"   Integration: Complete + Image Generation")
-            print(f"   🖼️ Image Generation: FIXED")
-            print(f"   📊 Metrics Logging: Enhanced composite logging")
+            print(f"🎓 Running Enhanced DCGAN Academic Study with Multi-Session Support")
+            print(f"   🎯 Dataset: {args.dataset}")
+            print(f"   📅 Epochs: {args.epochs}")
+            print(f"   🔄 Resume Mode: {args.resume}")
+            print(f"   🔗 Integration: Complete + Session Management")
+            print(f"   🖼️ Image Generation: Complete capture")
+            print(f"   📊 🆕 Session Analytics: Multi-session tracking enabled")
 
-        reporter, final_report = run_fixed_fully_integrated_academic_study(
-            dataset_choice=args.dataset,
-            num_epochs=args.epochs,
-            resume_mode=args.resume
-        )
+        try:
+            reporter, final_report = run_fixed_fully_integrated_academic_study(
+                dataset_choice=args.dataset,
+                num_epochs=args.epochs,
+                resume_mode=args.resume
+            )
 
-        if final_report:
-            # FIXED: Use your exact original success text
-            print(f"\n✅ Academic study completed with complete image documentation!")
-            print(f"📄 Report: {final_report}")
-            print(f"🖼️ Images: {reporter.report_dir}/generated_samples/")
-            print(f"📊 Enhanced metrics: training_logs/")
+            if final_report:
+                print(f"\n✅ Enhanced academic study completed with session management!")
+                print(f"📄 Academic report: {final_report}")
+                print(f"🖼️ Generated images: {reporter.report_dir}/generated_samples/")
+                print(f"📊 🆕 Session logs: ./training_logs/ (multi-session analytics ready)")
+                print(f"🔄 🆕 Use session commands to analyze training history:")
+                print(f"   enhanced-dcgan sessions {args.dataset}")
+                print(f"   enhanced-dcgan logs")
+            else:
+                print(f"\n⚠️ Study completed but may have encountered issues")
+
+        except Exception as e:
+            print_with_color(f"\n❌ Command line training failed: {e}", "91")
+            print("🛡️ Check session logs and emergency checkpoints for recovery options")
+
+    if not args.quiet:
+        print(f"\n🔄 SESSION MANAGEMENT COMMANDS NOW AVAILABLE:")
+        print(f"   enhanced-dcgan sessions {args.dataset if args.dataset else 'mnist'}    # View training sessions")
+        print(f"   enhanced-dcgan logs                           # List all log files")
+        print(f"   enhanced-dcgan analyze <log_file>             # Analyze training logs")
+        print(f"   enhanced-dcgan help                           # Session management help")
+        print(f"\n📊 Your training data is preserved across all sessions for comprehensive analysis!")
 
 if __name__ == "__main__":
     main()
