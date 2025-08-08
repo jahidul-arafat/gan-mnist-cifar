@@ -1252,8 +1252,8 @@ enhanced-dcgan --test
 
 ## 📚 Generated Reports from DCGAN training with MNIST and CIFAR10 Dataset
 Find the two sample generated report from MNIST and CIFAR10 training
-- [x] [MNIST Report from training epoch 20 to 50]
-- [x] [CIFAR10 Report from training epoch 20 to 50]
+- [x] [MNIST Report from training epoch 20 to 50](https://github.com/jahidul-arafat/gan-mnist-cifar/blob/main/generated_reports/mnist_epoch_20_50/comprehensive_academic_report.md)
+- [x] [CIFAR10 Report from training epoch 200 to 300](https://github.com/jahidul-arafat/gan-mnist-cifar/blob/main/generated_reports/cifar10_epoch_200_300/comprehensive_academic_report.md)
 
 ## 📄 License
 
