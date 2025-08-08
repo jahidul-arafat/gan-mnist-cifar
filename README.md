@@ -28,7 +28,7 @@ The Enhanced DCGAN Research Framework is a comprehensive, production-ready imple
 
 ### Prerequisites & Setup
 
-#### Approach-01: Using TestPyPI (Simplest Installation)
+#### Approach-01: Using [TestPyPI](https://test.pypi.org/project/enhanced-dcgan-research/) (Simplest Installation)
 
 ```bash
 # Step 1: Install Core Dependencies

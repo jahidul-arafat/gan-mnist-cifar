@@ -80,3 +80,6 @@ data_source/
 backup/
 enhanced_dcgan_research/training_logs
 enhanced-dcgan-web/
+*.sh
+build_and_upload.py
+setup.py
