@@ -83,3 +83,4 @@ enhanced-dcgan-web/
 *.sh
 build_and_upload.py
 setup.py
+gh-md-toc

@@ -1,6 +1,9 @@
 # Enhanced DCGAN Research Framework 🎓
 
-> **A Production-Ready Academic Research Framework for Enhanced Deep Convolutional Generative Adversarial Networks with Complete Multi-Session Analytics and Comprehensive Dataset Support**
+A Production-Ready Academic Research Framework for Enhanced Deep Convolutional Generative Adversarial Networks with Complete Multi-Session Analytics and Comprehensive Dataset Support
+
+> **Designed by** [Jahidul Arafat, PhD Candidate, AU, CSSE](https://www.linkedin.com/in/jahidul-arafat-presidential-fellow-phd-candidate-791a7490/)  
+> Presidential and Waltosz Graduate Research Fellow, Software Supply Chain Security
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch 2.0+](https://img.shields.io/badge/PyTorch-2.0+-red.svg)](https://pytorch.org/)
