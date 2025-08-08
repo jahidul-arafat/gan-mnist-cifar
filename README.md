@@ -16,6 +16,7 @@ Table of Contents
 =================
 
 * [Enhanced DCGAN Research Framework 🎓](#enhanced-dcgan-research-framework-)
+* [Table of Contents](#table-of-contents)
     * [🌟 Overview](#-overview)
         * [🎯 Key Highlights](#-key-highlights)
     * [🚀 Quick Start](#-quick-start)
@@ -114,6 +115,7 @@ Table of Contents
         * [Development Setup with Session Testing](#development-setup-with-session-testing)
         * [Session-Specific Contribution Guidelines](#session-specific-contribution-guidelines)
         * [Testing Contributions](#testing-contributions)
+    * [📚 Generated Reports from DCGAN training with MNIST and CIFAR10 Dataset](#-generated-reports-from-dcgan-training-with-mnist-and-cifar10-dataset)
     * [📄 License](#-license)
     * [📚 Citation](#-citation)
     * [🌟 Acknowledgments](#-acknowledgments)
