@@ -1250,6 +1250,11 @@ print('CIFAR-10 test passed')
 enhanced-dcgan --test
 ```
 
+## 📚 Generated Reports from DCGAN training with MNIST and CIFAR10 Dataset
+Find the two sample generated report from MNIST and CIFAR10 training
+- [x] [MNIST Report from training epoch 20 to 50]
+- [x] [CIFAR10 Report from training epoch 20 to 50]
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
