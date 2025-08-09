@@ -11,6 +11,10 @@ A Production-Ready Academic Research Framework for Enhanced Deep Convolutional G
 [![Research Framework](https://img.shields.io/badge/Type-Academic%20Research-green.svg)](https://github.com/jahidul-arafat/gan-mnist-cifar)
 [![Multi-Session Support](https://img.shields.io/badge/Multi--Session-Analytics-orange.svg)](https://github.com/jahidul-arafat/gan-mnist-cifar)
 
+## Watch the Demonstration
+[![Watch the video](https://img.youtube.com/vi/jrSvcSRGhr8/maxresdefault.jpg)](https://www.youtube.com/watch?v=jrSvcSRGhr8)
+
+
 <!-- toc -->
 Table of Contents
 =================
